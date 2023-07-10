@@ -29,10 +29,15 @@ module MyLayoutHelper{
             QUADRANT_BOTTOM_RIGHT = 8,
         }
         hidden enum Direction{
-            DIRECTION_UP = 1,
-            DIRECTION_LEFT = 2,
-            DIRECTION_DOWN = 4,
-            DIRECTION_RIGHT = 8,
+            DIRECTION_RIGHT = 1,
+            DIRECTION_TOP = 2,
+            DIRECTION_LEFT = 4,
+            DIRECTION_BOTTOM = 8,
+            // defined combinations
+            DIRECTION_TOP_RIGHT = 3,
+            DIRECTION_TOP_LEFT = 6,
+            DIRECTION_BOTTOM_LEFT = 12,
+            DIRECTION_BOTTOM_RIGHT = 9,
         }
 
         // compact area data
@@ -170,8 +175,7 @@ module MyLayoutHelper{
                 objRotated[3] += dy;
 
                 // transpose back to original orientation
-                nrOfQuadrantsToRotate = 4 - nrOfQuadrantsToRotate;
-                var objAligned = rotateArea(objRotated, nrOfQuadrantsToRotate);
+                var objAligned = rotateArea(objRotated, -nrOfQuadrantsToRotate);
 
                 // get the movement
                 dx = objAligned[0] - obj[0];
@@ -187,7 +191,7 @@ module MyLayoutHelper{
         function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void{
             // resize object to fit within outer limits
 
-            var aspectRatio = shape.width.toFloat()/shape.height;
+            var aspectRatio = 1f * shape.width/shape.height;
             var obj = getArea(shape);
             var xMin = limits[0];
             var xMax = limits[1];
@@ -208,181 +212,153 @@ module MyLayoutHelper{
 			var r2 = r*r;
 			var quadrants = 0;
 
-            // create a set of quadrants where the circle edge can be reached
-            for(var q=QUADRANT_TOP_RIGHT; q<=QUADRANT_BOTTOM_RIGHT; q*=2){
-                var x = (q==QUADRANT_TOP_RIGHT || q==QUADRANT_BOTTOM_RIGHT) ? xMax : -xMin;
-                var y = (q==QUADRANT_TOP_LEFT || q==QUADRANT_TOP_RIGHT) ? yMax : -yMin;
- 
-                if((x*x + y*y > r2) && (x>0) && (y>0)){
-                    quadrants += q;
+            // check when corner limit is outside the circle
+            for(var d=DIRECTION_TOP_LEFT; d<16; d*=2){
+                var x = (d & DIRECTION_LEFT > 0)? -xMin : xMax;
+                var y = (d & DIRECTION_TOP > 0)? -yMin : yMax;
+
+                if(x*x + y*y > r2){
+                    var q = (d == DIRECTION_TOP_RIGHT)
+                        ? QUADRANT_TOP_RIGHT
+                        : (d == DIRECTION_TOP_LEFT)
+                            ? QUADRANT_TOP_LEFT
+                            : (d == DIRECTION_BOTTOM_LEFT)
+                                ? QUADRANT_BOTTOM_LEFT
+                                : QUADRANT_BOTTOM_RIGHT;
+
+                    quadrants |= q;
                 }
             }
 
-            // no circle edges => resize to limits
-            if(quadrants == 0){
-                var dx = 0;
-                var dy = 0;
+            // determine the strategie for optimizing the size
+            var quadrantCount = MyMath.countBitsHigh(quadrants);
+            var exceededDirections = null;
+
+            if(quadrantCount == 0){
+                // all within limits (rectangle)
                 if(keepAspectRatio){
-                    var wL = xMax-xMin;
-                    var hL = yMax-yMin;
-                    var ratioL = wL/hL;
-                    if(ratioL >= aspectRatio){
-                        var h = hL;
-                        var w = h*aspectRatio;
-                        dx = (wL - w)/2;
-                    }else{
-                        var w = hL;
-                        var h = w/aspectRatio;
-                        dy = (hL - h)/2;
+                    var wL = xMax - xMin;
+                    var hL = yMax - yMin;
+                    var x = xMin;
+                    var y = yMin;
+                    var w = wL;
+                    var h = hL;
+                    var aspectRatioL = wL / hL;
+
+                    if(aspectRatio > aspectRatioL){
+                        w = 1f * hL / aspectRatio;
+                        x += (wL-w)/2;
+                    }else if(aspectRatio < aspectRatioL){
+                        h = aspectRatio * wL;
+                        y += (hL - h)/2;
                     }
+                    obj = [x, x+w, y, y+w] as Area;
+                    applyArea(obj, shape);
+                }else{
+                    applyArea(limits, shape);
                 }
-                obj = [
-                    dx + xMin, 
-                    -dx + xMax,
-                    dy + yMin, 
-                    -dy + yMax
-                ] as Area;
-                applyArea(obj, shape);
                 return;
             }
 
-			// check if the circle edge can be reached with all 4 corners
-   			var quadrantCount = MyMath.countBitsHigh(quadrants);
+            if(quadrantCount == 4){
+                // approach circle edge with all four corners
+                var angle = Math.atan(aspectRatio);
+                var x = r * Math.cos(angle);
+                var y = r * Math.sin(angle);
 
-			if(quadrantCount == 4){
-				reachCircleEdge_4Points(obj, aspectRatio);
+                obj = [-x, x, -y, y] as Area;
 
-				// check boundaries
-				var exceeded_quadrants = checkLimits(obj);
-				if(exceeded_quadrants != 0){
-					//quadrants &= ~exceeded_quadrants;
-				}else{
-					applyArea(obj, shape);
-					return;
-				}
-			}
-
-			if(quadrantCount > 1){
-				// No sollution yet......
-				// check if the circle edge can be reached with 2 corners
-				// collect in which directions the circle can be reached
-
-                // loop through all quadrants to collect possible direction
-                //  Q1 (top-right)    = 1      up      = 1
-                //  Q2 (top-left)     = 2      left    = 2
-                //  Q3 (bottom-left)  = 4      down    = 4
-                //  Q4 (bottom-right) = 8      right   = 8
-                var directions = 0;
-				if((quadrants & QUADRANT_TOP_RIGHT) > 0){
-					if((quadrants & QUADRANT_TOP_LEFT) > 0){
-						directions |= DIRECTION_UP;
-					}
-					if((quadrants & QUADRANT_BOTTOM_RIGHT) > 0){
-						directions |= DIRECTION_RIGHT;
-					}
-				}
-				if((quadrants & QUADRANT_BOTTOM_LEFT) > 0){
-					if((quadrants & QUADRANT_BOTTOM_RIGHT) > 0){
-						directions |= BOTTOM;
-					}
-					if((quadrants & QUADRANT_TOP_LEFT) > 0){
-						directions |= LEFT;
-					}
-				}
-
-				// Choose direction from opposite directions
-				if(directions & (LEFT|RIGHT) == (LEFT|RIGHT)){
-					if(xMin + xMax > 0){
-						directions &= ~LEFT;
-					}else{
-						directions &= ~RIGHT;
-					}
-				}
-				if(directions & (TOP|BOTTOM) == (TOP|BOTTOM)){
-					if(yMin + yMax > 0){
-						directions &= ~BOTTOM;
-					}else{
-						directions &= ~TOP;
-					}
-				}
-
-				var directionsArray = MyMath.getBitValues(directions);
-				for(var i=0; i<directionsArray.size(); i++){
-					var direction = directionsArray[i] as Direction;
-					reachCircleEdge_2Points(obj, aspectRatio, direction);
-
-					// check boundaries
-					var exceeded_quadrants = checkLimits(obj);
-					if(exceeded_quadrants > 0){
-						// quadrants &= ~exceeded_quadrants;
-					}else{
-						applyArea(obj, shape);
-						return;
-					}
-				}
-			}
-
-			if(quadrants > 0){
-				// No sollution yet......
-				// Check if edge of circle can be reached at 1 corner
-
-				// reduce quadrants (remove quadrants with smallest space within boundaries)
-				var quadrant = quadrants;
-				quadrantCount = MyMath.countBitsHigh(quadrant);
-				if(quadrantCount > 1){
-					var removed_quadrants = 0;
-					if(quadrants & QUADRANT_TOP_RIGHT > 0){
-						if(quadrants & QUADRANT_TOP_LEFT > 0){
-							if(xMin + xMax > 0){
-								removed_quadrants |= QUADRANT_TOP_LEFT;
-							}else{
-								removed_quadrants |= QUADRANT_TOP_RIGHT;
-							}
-						}
-						if(quadrants & QUADRANT_BOTTOM_RIGHT > 0){
-							if(yMin + yMax > 0){
-								removed_quadrants |= QUADRANT_BOTTOM_RIGHT;
-							}else{
-								removed_quadrants |= QUADRANT_TOP_RIGHT;
-							}
-						}
-					}
-					if(quadrants & QUADRANT_BOTTOM_LEFT > 0){
-						if(quadrants & QUADRANT_BOTTOM_RIGHT > 0){
-							if(xMin + xMax > 0){
-								removed_quadrants |= QUADRANT_BOTTOM_LEFT;
-							}else{
-								removed_quadrants |= QUADRANT_BOTTOM_RIGHT;
-							}
-						}
-						if(quadrants & QUADRANT_TOP_LEFT > 0){
-							if(yMin + yMax > 0){
-								removed_quadrants |= QUADRANT_BOTTOM_LEFT;
-							}else{
-								removed_quadrants |= QUADRANT_TOP_LEFT;
-							}
-						}
-					}
-					quadrant &= ~removed_quadrants;
-				}
-				reachCircleEdge_1Point(obj, aspectRatio, quadrant as Quadrant);
-
-				// check boundaries
-				var exceeded_quadrants = checkLimits(obj);
-				if(exceeded_quadrants == 0){
+                // check if this is within the limits
+                exceededDirections = checkLimits(obj);
+                if(exceededDirections == 0){
                     applyArea(obj, shape);
-					return;
-				}
-			}
+                    return;
+                }else if(exceededDirections ==2){
+                    // limitation on two opposite sides (tunnel)
+                    //                          ┌─────────┐
+                    //	                     ┌──┘         └──┐  
+                    //	                   ┌─┘ ·           · └─┐
+                    //	                   │   ·           ·   │
+                    //	                   │   ·           ·   │
+                    //	                   │   ·           ·   │
+                    //	                   └─┐ ·           · ┌─┘
+                    //	                     └──┐         ┌──┘
+                    //	                        └─────────┘
+                    // (example with vertical orientation)
 
-			if(quadrants > 0){
-				// shrink to fit within boundaries (ratio only to determine shrink and grow direction)
-				if(shape != null){
-					shrinkAndResize(obj, quadrants);
-					applyArea(obj, shape);
-					return;
-				}
-			}
+                    // transpose to vertical orientation
+                    var nrOfQuadrants = (exceededDirections == (DIRECTION_TOP | DIRECTION_BOTTOM ))
+                        ? 1
+                        : (exceededDirections == (DIRECTION_LEFT | DIRECTION_RIGHT ))
+                            ? 0
+                            : null;
+
+                    if(nrOfQuadrants != null){
+                        var limits_ = rotateArea(limits, nrOfQuadrants);
+                        var aspectRatio_ = (nrOfQuadrants % 2 == 0) ? aspectRatio : 1f / aspectRatio;
+                        var obj_ = limits_;
+
+                        var xMinL_ = limits_[0];
+                        var xMaxL_ = limits_[1];
+                        var yMinL_ = limits_[2];
+                        var yMaxL_ = limits_[3];
+
+                        if(keepAspectRatio){
+                            var widthL_ = xMaxL_ - xMinL_;
+                            var heightL_ = yMaxL_ - yMinL_;
+
+                            var height_ = widthL_ * aspectRatio_;
+                            var yMin_ = yMinL_ + (heightL_ - height_)/2;
+                            obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
+                        }else{
+                            // get the side that is farest from the middle
+                            var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
+                            var y_ = Math.sqrt(r*r - xFar_*xFar_);
+                            obj_ = [xMinL_, xMaxL_, -y_, y_] as Area;
+                        }
+
+                        // rotate back to initial orientation
+                        obj = rotateArea(obj_, -nrOfQuadrants);
+                        applyArea(obj, shape);
+                        return;
+
+                    }else{
+                        throw new MyTools.MyException("This is not supposed to happen!");
+                    }
+                    
+
+
+                }else{
+                    // reduce quadrants where circle can be reached
+                    quadrants = 0;
+                    if(exceededDirections & DIRECTION_TOP == DIRECTION_TOP){
+                        quadrants |= QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT;
+                    }
+                    if(exceededDirections & DIRECTION_LEFT == DIRECTION_LEFT){
+                        quadrants |= QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT;
+                    }
+                    if(exceededDirections & DIRECTION_BOTTOM == DIRECTION_BOTTOM){
+                        quadrants |= QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT;
+                    }
+                    if(exceededDirections & DIRECTION_RIGHT == DIRECTION_RIGHT){
+                        quadrants |= QUADRANT_BOTTOM_RIGHT|QUADRANT_TOP_RIGHT;
+                    }
+                }
+            }
+
+            if(quadrantCount == 3){
+                // what now?
+            }
+
+            if(quadrantCount == 2){
+                // approach circle edge with two corners
+                throw new MyTools.MyException("ToDo");
+            }
+
+            if(quadrantCount == 1){
+                // approach circle edge with one corners
+                throw new MyTools.MyException("ToDo");
+            }
         }
 
         // helper functions
@@ -402,6 +378,12 @@ module MyLayoutHelper{
         }
 
         hidden function rotateArea(area as Area, nrOfQuadrants as Number) as Area{
+            // to support negative numbers
+            while(nrOfQuadrants<0){
+                nrOfQuadrants += 4;
+            }
+
+            // to support numbers multiple rounds
             nrOfQuadrants %= 4;
             if(nrOfQuadrants == 1){
                 return [area[2], area[3], -area[1], -area[0]] as Area;
@@ -413,85 +395,22 @@ module MyLayoutHelper{
                 return [area[0], area[1], area[2], area[3]] as Area;
             }
         }
-        hidden function flipArea(area as Area, horizontal as Boolean) as Area{
-            if(horizontal){
-                return [-area[1], -area[0], area[2], area[3]] as Area;
-            }else{
-                return [area[0], area[1], -area[3], -area[2]] as Area;
+
+        hidden function checkLimits(area as Area) as Direction|Number{
+            var exceededDirections = 0;
+            if(area[0] < limits[0]){
+                exceededDirections |= DIRECTION_LEFT;
             }
-        }
-        hidden function checkLimits(area as Area) as Quadrant|Number{
-            // return the quadrants that are exceeded
-            var exceededQuadrants = 0;
-            for(var q=QUADRANT_TOP_RIGHT; q<QUADRANT_BOTTOM_RIGHT; q*=2){
-                var x = (q==QUADRANT_TOP_RIGHT || q==QUADRANT_BOTTOM_RIGHT) ? area[1] : -area[0];
-                var y = (q==QUADRANT_TOP_RIGHT || q==QUADRANT_TOP_LEFT) ? area[3] : -area[2];
-                var xL = (q==QUADRANT_TOP_RIGHT || q==QUADRANT_BOTTOM_RIGHT) ? limits[1] : -limits[0];
-                var yL = (q==QUADRANT_TOP_RIGHT || q==QUADRANT_TOP_LEFT) ? limits[3] : -limits[2];
-
-                if(x > xL || y > yL){
-                    exceededQuadrants |= q;
-                }
+            if(area[1] > limits[1]){
+                exceededDirections |= DIRECTION_RIGHT;
             }
-            return exceededQuadrants;
+            if(area[2] < limits[2]){
+                exceededDirections |= DIRECTION_TOP;
+            }
+            if(area[3] > limits[3]){
+                exceededDirections |= DIRECTION_BOTTOM;
+            }
+            return exceededDirections;
         }
-
-        // align functions
-        hidden function reachCircleEdge_4Points(obj as Area, aspectRatio as Decimal) as Void{
-
-        }
-
-        hidden function reachCircleEdge_2Points(obj as Area, aspectRatio as Decimal, direction as Direction|Number) as Void{
-
-        }
-
-        hidden function reachCircleEdge_1Point(obj as Area, aspectRatio as Decimal, quadrant as Quadrant)as Void{
-
-        }
-
-        hidden function shrinkAndResize(obj as Area, quadrants as Quadrant|Number) as Void{
-			var xMin = limits[0];
-			var xMax = limits[1];
-			var yMin = limits[2];
-			var yMax = limits[3];
-
-			// first shrink and then determine the resize direction(s)
-			var directions = 0;
-			if(obj[0] < xMin){
-				obj[0] = xMin;
-				directions |= DIRECTION_UP|DIRECTION_DOWN;
-			}
-			if(obj[1] > xMax){
-				obj[1]= xMax;
-				directions |= DIRECTION_UP|DIRECTION_DOWN;
-			}
-			if(obj[3] > yMax){
-                obj[3] = yMax;
-				directions |= DIRECTION_LEFT|DIRECTION_RIGHT;
-			}
-			if(obj[2] < yMin){
-				obj[2] = yMin;
-				directions |= DIRECTION_LEFT|DIRECTION_RIGHT;
-			}
-
-			// check which resizing direction is required
-			var include_directions = 0;
-			if(quadrants & (QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT) > 0){ include_directions |= DIRECTION_UP; }
-			if(quadrants & (QUADRANT_TOP_RIGHT|QUADRANT_BOTTOM_RIGHT) > 0){ include_directions |= DIRECTION_RIGHT; }
-			if(quadrants & (QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT) > 0){ include_directions |= DIRECTION_DOWN; }
-			if(quadrants & (QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT) > 0){ include_directions |= DIRECTION_LEFT; }
-			directions &= include_directions;
-
-			// Do the resizing till the circle edge
-			var r2 = r * r;
-			var x = MyMath.max([-xMin, xMax] as Array<Numeric>);
-			var y = MyMath.max([-yMin, yMax] as Array<Numeric>);
-
-			if(directions & DIRECTION_UP > 0)   { obj[3] = Math.sqrt(r2 - x*x); }
-			if(directions & DIRECTION_LEFT > 0) { obj[0] = -Math.sqrt(r2 - y*y); }
-			if(directions & DIRECTION_DOWN > 0) { obj[2] = -Math.sqrt(r2 - x*x); }
-			if(directions & DIRECTION_RIGHT > 0){ obj[1] = Math.sqrt(r2 - y*y); }
-		}
-
     }
 }
