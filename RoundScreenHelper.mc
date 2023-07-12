@@ -496,11 +496,11 @@ module MyLayoutHelper{
             //      ((x - xMin) / (2 * ratio))² = r² - xMin²
             //  use abc formula to solve x
 			var a = 1+Math.pow(ratio_/2, 2);
-			var b = -ratio*ratio_/2 * xMin;
+			var b = -ratio_*ratio_/2 * xMin;
 			var c = Math.pow(ratio_/2 * xMin, 2) - r*r;
 			var results = MyMath.getAbcFormulaResults(a, b, c);
 			var x = results[1];
-			var y = ratio * (x - xMin) / 2;
+			var y = (x - xMin) / (1/ratio_ * 2);
 
             var obj_ = [xMin, x, -y, y] as Area;
 
