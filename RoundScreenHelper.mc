@@ -82,10 +82,6 @@ module MyLayoutHelper{
                 alignment &= ~(ALIGN_LEFT|ALIGN_RIGHT);
             }
 
-            // calculate the following 2 variables to move the object
-            var dx = 0;
-            var dy = 0;
-
             // determine the align type (centered/horizontal/vertical/diagonal)
             var alignType = MyMath.countBitsHigh(alignment as Number); // 0 => centered), 1 => straight, 2 => diagonal
 
@@ -101,92 +97,91 @@ module MyLayoutHelper{
             }else if(alignType == 1){
                 // straight
                 // transpose to TOP alignment
-                var nrOfQuadrantsToRotate = (alignment == ALIGN_TOP)
-                    ? 0
-                    : (alignment == ALIGN_RIGHT)
-                        ? 1
+                var direction = (alignment == ALIGN_TOP)
+                    ? DIRECTION_TOP
+                    : (alignment == ALIGN_LEFT)
+                        ? DIRECTION_LEFT
                         : (alignment == ALIGN_BOTTOM)
-                            ? 2
-                            : 3;
-                var objRotated = rotateArea(obj, nrOfQuadrantsToRotate);
-                var limitsRotated = rotateArea(limits, nrOfQuadrantsToRotate);
+                            ? DIRECTION_BOTTOM
+                            : (alignment == ALIGN_RIGHT)
+                                ? DIRECTION_RIGHT
+                                : null;
+                if(direction != null){
+                    var obj_ = transposeArea(obj, direction, DIRECTION_TOP);
+                    var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
 
-                // ********* Do the top alignment ***********
-                // (x,y) with (0,0) at top left corner
-                // now use (X,Y) with (0,0) at circle center
-                var xMinL = limitsRotated[0];
-                var xMaxL = limitsRotated[1];
-                var yMinL = limitsRotated[2];
-                var yMaxL = limitsRotated[3];
-                var xMin = objRotated[0];
-                var xMax = objRotated[1];
-                var yMin = objRotated[2];
-                var yMax = objRotated[3];
+                    // ********* Do the top alignment ***********
+                    // (x,y) with (0,0) at top left corner
+                    // now use (X,Y) with (0,0) at circle center
+                    var xMinL = limits_[0];
+                    var xMaxL = limits_[1];
+                    var yMinL = limits_[2];
+                    var yMaxL = limits_[3];
+                    var xMin = limits_[0];
+                    var xMax = limits_[1];
+                    var yMin = limits_[2];
+                    var yMax = limits_[3];
 
-                // check if the width fits inside the boundaries
-                if((xMax - xMin) > (xMaxL - xMinL)){
-                    throw new MyTools.MyException("shape cannot be aligned, shape outside limits");
-                }
-                // check space on top boundary within the circle
-                //   x² + y² = radius²
-                //   x = ±√(radius² - y²)
-                //   xMax = +√(radius² - yMin²), xMin = -√(radius² - yMin²) 
-                var r2 = r*r;
-                var xCircle = Math.sqrt(r2 - yMinL*yMinL);
-                var xMaxCalc = (xCircle < xMaxL) ? xCircle : xMaxL;
-                var xMinCalc = (-xCircle > xMinL) ? -xCircle : xMinL;
-
-                // check if the object fits against the top boundary
-                var w = xMax - xMin;
-                var h = yMax - yMin;
-                if((xMaxCalc - xMinCalc) >= w){
-                    xMinCalc = 0.5 * (xMinCalc + xMaxCalc - w);
-                    var yMinCalc = yMinL;
-                    dx = xMinCalc - xMin;
-                    dy = yMinCalc - yMin;
-                }else{
-                    // move away from the border until the object fits
-                    // needs space on circle both left and right or only left or right
-                    var needsRight = false;
-                    var needsLeft = false;
-                    if(xMinL > -w/2){
-                        needsRight = true;
-                    }else if(xMaxL < w/2){
-                        needsLeft = true;
-                    }else{
-                        needsLeft = true;
-                        needsRight = true;
+                    // check if the width fits inside the boundaries
+                    if((xMax - xMin) > (xMaxL - xMinL)){
+                        throw new MyTools.MyException("shape cannot be aligned, shape outside limits");
                     }
-                    var xNeeded = (needsLeft && needsRight) // x needed for each circle side
-                        ? 0.5f * w
-                        : needsLeft
-                            ? w - xMaxL
-                            : w + xMinL;
-                    // y² + x² = radius²
-                    // y = ±√(radius² - x²)
-                    var yMinCalc = - Math.sqrt(r2 - xNeeded*xNeeded);
-                    xMinCalc = (xMinL > -xNeeded) ? xMinL : -xNeeded;
-                    dx = xMinCalc - xMin;
-                    dy = yMinCalc - yMin;
+                    // check space on top boundary within the circle
+                    //   x² + y² = r²
+                    //   x = ±√(r² - y²)
+                    //   xMax = +√(r² - yMin²), xMin = -√(r² - yMin²) 
+                    var r2 = r*r;
+                    var xCircle = Math.sqrt(r2 - yMinL*yMinL);
+                    var xMaxCalc = (xCircle < xMaxL) ? xCircle : xMaxL;
+                    var xMinCalc = (-xCircle > xMinL) ? -xCircle : xMinL;
+
+                    // check if the object fits against the top boundary
+                    var w = xMax - xMin;
+                    var h = yMax - yMin;
+                    var dx = 0;
+                    var dy = 0;
+                    if((xMaxCalc - xMinCalc) >= w){
+                        xMinCalc = 0.5 * (xMinCalc + xMaxCalc - w);
+                        var yMinCalc = yMinL;
+                        dx = xMinCalc - xMin;
+                        dy = yMinCalc - yMin;
+                    }else{
+                        // move away from the border until the object fits
+                        // needs space on circle both left and right or only left or right
+                        var needsRight = false;
+                        var needsLeft = false;
+                        if(xMinL > -w/2){
+                            needsRight = true;
+                        }else if(xMaxL < w/2){
+                            needsLeft = true;
+                        }else{
+                            needsLeft = true;
+                            needsRight = true;
+                        }
+                        var xNeeded = (needsLeft && needsRight) // x needed for each circle side
+                            ? 0.5f * w
+                            : needsLeft
+                                ? w - xMaxL
+                                : w + xMinL;
+                        // y² + x² = r²
+                        // y = ±√(r² - x²)
+                        var yMinCalc = - Math.sqrt(r2 - xNeeded*xNeeded);
+                        xMinCalc = (xMinL > -xNeeded) ? xMinL : -xNeeded;
+                        dx = xMinCalc - xMin;
+                        dy = yMinCalc - yMin;
+                    }
+                    obj_[0] += dx;
+                    obj_[1] += dx;
+                    obj_[2] += dy;
+                    obj_[3] += dy;
+
+                    // transpose back to original orientation
+                    obj = transposeArea(obj_, DIRECTION_TOP, direction);
                 }
-                objRotated[0] += dx;
-                objRotated[1] += dx;
-                objRotated[2] += dy;
-                objRotated[3] += dy;
-
-                // transpose back to original orientation
-                var objAligned = rotateArea(objRotated, -nrOfQuadrantsToRotate);
-
-                // get the movement
-                dx = objAligned[0] - obj[0];
-                dy = objAligned[2] - obj[2];
-
             }
 
-            shape.locX += dx;
-            shape.locY += dy;
+            applyArea(obj, shape);
         }
-
 
         function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void{
             // resize object to fit within outer limits
@@ -213,11 +208,12 @@ module MyLayoutHelper{
 			var quadrants = 0;
 
             // check when corner limit is outside the circle
-            for(var d=DIRECTION_TOP_LEFT; d<16; d*=2){
+            var d = DIRECTION_TOP_RIGHT;
+            for(var i=0; i<4; i++){
                 var x = (d & DIRECTION_LEFT > 0)? -xMin : xMax;
                 var y = (d & DIRECTION_TOP > 0)? -yMin : yMax;
 
-                if(x*x + y*y > r2){
+                if(x>0 && y>0 && (x*x + y*y > r2)){
                     var q = (d == DIRECTION_TOP_RIGHT)
                         ? QUADRANT_TOP_RIGHT
                         : (d == DIRECTION_TOP_LEFT)
@@ -228,6 +224,7 @@ module MyLayoutHelper{
 
                     quadrants |= q;
                 }
+                d *= 2;
             }
 
             // determine the strategie for optimizing the size
@@ -236,6 +233,7 @@ module MyLayoutHelper{
 
             if(quadrantCount == 0){
                 // all within limits (rectangle)
+                System.println("scenario 0: all within limits (rectangle)");
                 if(keepAspectRatio){
                     var wL = xMax - xMin;
                     var hL = yMax - yMin;
@@ -261,6 +259,7 @@ module MyLayoutHelper{
             }
 
             if(quadrantCount == 4){
+                System.println("scenario 1: approach circle edge with all four corners");
                 // approach circle edge with all four corners
                 var angle = Math.atan(aspectRatio);
                 var x = r * Math.cos(angle);
@@ -270,10 +269,13 @@ module MyLayoutHelper{
 
                 // check if this is within the limits
                 exceededDirections = checkLimits(obj);
-                if(exceededDirections == 0){
+                var exceededDirectionCount = MyMath.countBitsHigh(exceededDirections as Number);
+                if(exceededDirectionCount == 0){
                     applyArea(obj, shape);
                     return;
-                }else if(exceededDirections ==2){
+                }else if(exceededDirectionCount ==2){
+                    System.println("scenario 1b: limitation on two opposite sides (tunnel)");
+
                     // limitation on two opposite sides (tunnel)
                     //                          ┌─────────┐
                     //	                     ┌──┘         └──┐  
@@ -326,38 +328,60 @@ module MyLayoutHelper{
                         throw new MyTools.MyException("This is not supposed to happen!");
                     }
                     
-
-
                 }else{
                     // reduce quadrants where circle can be reached
-                    quadrants = 0;
                     if(exceededDirections & DIRECTION_TOP == DIRECTION_TOP){
-                        quadrants |= QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT;
+                        quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT);
                     }
                     if(exceededDirections & DIRECTION_LEFT == DIRECTION_LEFT){
-                        quadrants |= QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT;
+                        quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT);
                     }
                     if(exceededDirections & DIRECTION_BOTTOM == DIRECTION_BOTTOM){
-                        quadrants |= QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT;
+                        quadrants &= ~(QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT);
                     }
                     if(exceededDirections & DIRECTION_RIGHT == DIRECTION_RIGHT){
-                        quadrants |= QUADRANT_BOTTOM_RIGHT|QUADRANT_TOP_RIGHT;
+                        quadrants &= ~(QUADRANT_BOTTOM_RIGHT|QUADRANT_TOP_RIGHT);
                     }
+                    quadrantCount = MyMath.countBitsHigh(quadrants);
                 }
             }
 
             if(quadrantCount == 3){
-                // what now?
+                throw new MyTools.MyException("3 Quadrants???");
             }
 
             if(quadrantCount == 2){
                 // approach circle edge with two corners
-                throw new MyTools.MyException("ToDo");
+                var direction = (quadrants == QUADRANT_TOP_LEFT | QUADRANT_TOP_RIGHT)
+                    ? DIRECTION_TOP
+                    : (quadrants == QUADRANT_TOP_LEFT | QUADRANT_BOTTOM_LEFT)
+                        ? DIRECTION_LEFT
+                        : (quadrants == QUADRANT_BOTTOM_LEFT | QUADRANT_BOTTOM_RIGHT)
+                            ? DIRECTION_BOTTOM
+                            : (quadrants == QUADRANT_TOP_RIGHT | QUADRANT_BOTTOM_RIGHT)
+                                ? DIRECTION_RIGHT
+                                : null;
+                if(direction != null){
+                    obj = reachCircleEdge_2Points(aspectRatio, direction);
+                    exceededDirections = checkLimits(obj);
+
+                    if(exceededDirections == 0){
+                        applyArea(obj, shape);
+                        return;
+                    }
+
+                }else{
+                    throw new MyTools.MyException("This is not supposed to happen!");
+                }
+    
+
+                throw new MyTools.MyException("ToDo: approach circle edge with two corners");
+
             }
 
             if(quadrantCount == 1){
                 // approach circle edge with one corners
-                throw new MyTools.MyException("ToDo");
+                throw new MyTools.MyException("ToDo: approach circle edge with one corners");
             }
         }
 
@@ -396,6 +420,19 @@ module MyLayoutHelper{
             }
         }
 
+        hidden function transposeArea(obj as Area, from as Direction, to as Direction) as Area{
+            var counter = 0;
+            // Direction values: 2^[0..3]
+            if(to < from){
+                to += 16;
+            }
+            while(from < to){
+                counter++;
+                from *= 2;
+            }
+            return rotateArea(obj, counter);
+        }
+
         hidden function checkLimits(area as Area) as Direction|Number{
             var exceededDirections = 0;
             if(area[0] < limits[0]){
@@ -412,5 +449,59 @@ module MyLayoutHelper{
             }
             return exceededDirections;
         }
+
+		private function reachCircleEdge_2Points(ratio as Decimal, direction as Direction) as Area{
+			// will calculate the size to fit between left limit an right circle edge with given aspect ratio
+
+            // transpose to orientation RIGHT
+            var limits_ = transposeArea(limits, direction as Direction, DIRECTION_RIGHT);
+			var xMin = limits_[0];
+			var xMax = limits_[1];
+ 			var yMin = limits_[2];
+			var yMax = limits_[3];
+
+            //		yMax: the distance from the center to the limit corner touching the circle
+            //		x: the distance from the center to both sides of the rectangle
+            //
+            //              r   ↑      ┌───────────┐
+            //	     (radius)   ·    ┌─┘ |         └─┐
+            //	                ·  ┌─┘   • · · · · · ○─┐ ↑ +y
+            //	                ·  │     ·           · │ |
+            //	                ─  │     ·   +       · │ ─
+            //	                   │     ·           · │ |
+            //	                   └─┐   • · · · · · ○─┘ ↓ -y
+            //	                     └─┐ |         ┌─┘
+            //	                       └───────────┘
+            //	                         ←--→|←------→
+            //                          xMin         x
+            //                         (limit)
+			//	formula1:
+            //      r² = x² + y²
+			//	formula2:
+            //      ratio = width / height
+			//		ratio = (x-xMin) / (2*y)
+            //  combine:
+            //      r² = y² + xMin² 
+            //          => y² = r² - xMin²
+            //      ratio = (x-xMin) / (2*y)
+            //          => (2*y) * ratio = (x - xMin)
+            //          => y = (x - xMin) / (2 * ratio)
+            //      ((x - xMin) / (2 * ratio))² = r² - xMin²
+            //  use abc formula to solve x
+			var a = 1+Math.pow(ratio/2, 2);
+			var b = -ratio*ratio/2 * xMin;
+			var c = Math.pow(ratio/2 * xMin, 2) - r*r;
+			var results = MyMath.getAbcFormulaResults(a, b, c);
+			var x = results[1];
+			var y = ratio * (x - xMin) / 2;
+
+            var obj_ = [xMin, x, -y, y] as Area;
+
+            // and transpose back to the orininal orientation
+            return transposeArea(obj_, DIRECTION_RIGHT, direction);
+		}
+
+
+        
     }
 }
