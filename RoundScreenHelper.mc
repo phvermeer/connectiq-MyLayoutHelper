@@ -233,32 +233,17 @@ module MyLayoutHelper{
 
             if(quadrantCount == 0){
                 // all within limits (rectangle)
-                System.println("scenario 0: all within limits (rectangle)");
                 if(keepAspectRatio){
-                    var wL = xMax - xMin;
-                    var hL = yMax - yMin;
-                    var x = xMin;
-                    var y = yMin;
-                    var w = wL;
-                    var h = hL;
-                    var aspectRatioL = wL / hL;
-
-                    if(aspectRatio > aspectRatioL){
-                        w = 1f * hL / aspectRatio;
-                        x += (wL-w)/2;
-                    }else if(aspectRatio < aspectRatioL){
-                        h = aspectRatio * wL;
-                        y += (hL - h)/2;
-                    }
-                    obj = [x, x+w, y, y+w] as Area;
-                    applyArea(obj, shape);
+                    obj = reachLimits(aspectRatio);
                 }else{
-                    applyArea(limits, shape);
-                }
+                    obj = limits;
+                    }
+                    applyArea(obj, shape);
                 return;
             }
 
             if(quadrantCount == 4){
+                System.println("scenario 1a: reach with four corners to the circle");
                 obj = reachCircleEdge_4Points(aspectRatio);
 
                 // check if this is within the limits
@@ -282,16 +267,14 @@ module MyLayoutHelper{
                     //	                        └─────────┘
                     // (example with vertical orientation)
 
-                    // transpose to vertical orientation
-                    var nrOfQuadrants = (exceededDirections == (DIRECTION_TOP | DIRECTION_BOTTOM ))
-                        ? 1
-                        : (exceededDirections == (DIRECTION_LEFT | DIRECTION_RIGHT ))
-                            ? 0
+                    var direction = (exceededDirections == DIRECTION_TOP | DIRECTION_BOTTOM)
+                        ? DIRECTION_RIGHT
+                        : (exceededDirections == DIRECTION_LEFT | DIRECTION_RIGHT )
+                            ? DIRECTION_TOP
                             : null;
-
-                    if(nrOfQuadrants != null){
-                        var limits_ = rotateArea(limits, nrOfQuadrants);
-                        var aspectRatio_ = (nrOfQuadrants % 2 == 0) ? aspectRatio : 1f / aspectRatio;
+                    if(direction != null){
+                        var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
+                        var aspectRatio_ = (direction == DIRECTION_TOP) ? aspectRatio : 1f / aspectRatio;
                         var obj_ = limits_;
 
                         var xMinL_ = limits_[0];
@@ -314,7 +297,8 @@ module MyLayoutHelper{
                         }
 
                         // rotate back to initial orientation
-                        obj = rotateArea(obj_, -nrOfQuadrants);
+                        //obj = rotateArea(obj_, -nrOfQuadrants);
+                        obj = transposeArea(obj_, DIRECTION_TOP, direction);
                         applyArea(obj, shape);
                         return;
 
@@ -432,12 +416,13 @@ module MyLayoutHelper{
         hidden function transposeArea(obj as Area, from as Direction, to as Direction) as Area{
             var counter = 0;
             // Direction values: 2^[0..3]
-            if(to < from){
-                to += 16;
-            }
             while(from < to){
                 counter++;
                 from *= 2;
+            }
+            while(from > to){
+                counter--;
+                from /= 2;
             }
             return rotateArea(obj, counter);
         }
