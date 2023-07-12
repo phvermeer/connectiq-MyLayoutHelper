@@ -259,13 +259,7 @@ module MyLayoutHelper{
             }
 
             if(quadrantCount == 4){
-                System.println("scenario 1: approach circle edge with all four corners");
-                // approach circle edge with all four corners
-                var angle = Math.atan(aspectRatio);
-                var x = r * Math.cos(angle);
-                var y = r * Math.sin(angle);
-
-                obj = [-x, x, -y, y] as Area;
+                obj = reachCircleEdge_4Points(aspectRatio);
 
                 // check if this is within the limits
                 exceededDirections = checkLimits(obj);
@@ -381,6 +375,21 @@ module MyLayoutHelper{
 
             if(quadrantCount == 1){
                 // approach circle edge with one corners
+                var quadrant = quadrants;
+                var direction = (quadrant == QUADRANT_TOP_RIGHT)
+                    ? DIRECTION_TOP_RIGHT
+                    : (quadrant == QUADRANT_TOP_LEFT)
+                        ? DIRECTION_TOP_LEFT
+                        : (quadrant == QUADRANT_BOTTOM_LEFT)
+                            ? DIRECTION_BOTTOM_LEFT
+                            : (quadrant == QUADRANT_BOTTOM_RIGHT)
+                                ? DIRECTION_BOTTOM_RIGHT
+                                : null;
+                if(direction != null){
+                    obj = reachCircleEdge_1Point(aspectRatio, direction);
+                    applyArea(obj, shape);
+                    return;
+                }
                 throw new MyTools.MyException("ToDo: approach circle edge with one corners");
             }
         }
@@ -450,11 +459,24 @@ module MyLayoutHelper{
             return exceededDirections;
         }
 
-		private function reachCircleEdge_2Points(ratio as Decimal, direction as Direction) as Area{
+		hidden function reachCircleEdge_4Points(aspectRatio as Decimal) as Area{
+            // approach circle edge with all four corners
+            var angle = Math.atan(aspectRatio);
+            var x = r * Math.cos(angle);
+            var y = r * Math.sin(angle);
+
+            return [-x, x, -y, y] as Area;
+        }
+
+		hidden function reachCircleEdge_2Points(ratio as Decimal, direction as Direction) as Area{
 			// will calculate the size to fit between left limit an right circle edge with given aspect ratio
 
             // transpose to orientation RIGHT
             var limits_ = transposeArea(limits, direction as Direction, DIRECTION_RIGHT);
+            var ratio_ = (direction & (DIRECTION_LEFT|DIRECTION_RIGHT) > 0)
+                ? ratio
+                : 1/ratio;
+            
 			var xMin = limits_[0];
 			var xMax = limits_[1];
  			var yMin = limits_[2];
@@ -488,9 +510,9 @@ module MyLayoutHelper{
             //          => y = (x - xMin) / (2 * ratio)
             //      ((x - xMin) / (2 * ratio))² = r² - xMin²
             //  use abc formula to solve x
-			var a = 1+Math.pow(ratio/2, 2);
-			var b = -ratio*ratio/2 * xMin;
-			var c = Math.pow(ratio/2 * xMin, 2) - r*r;
+			var a = 1+Math.pow(ratio_/2, 2);
+			var b = -ratio*ratio_/2 * xMin;
+			var c = Math.pow(ratio_/2 * xMin, 2) - r*r;
 			var results = MyMath.getAbcFormulaResults(a, b, c);
 			var x = results[1];
 			var y = ratio * (x - xMin) / 2;
@@ -501,7 +523,70 @@ module MyLayoutHelper{
             return transposeArea(obj_, DIRECTION_RIGHT, direction);
 		}
 
+		hidden function reachCircleEdge_1Point(ratio as Decimal, direction as Direction) as Area{
+            var limits_ = transposeArea(limits, direction, DIRECTION_BOTTOM_RIGHT);
+            var ratio_ = (
+                (direction == DIRECTION_BOTTOM_RIGHT) ||
+                (direction == DIRECTION_TOP_LEFT))
+                ? 1/ratio
+                : ratio;
 
-        
+            var xMin = limits_[0];
+            var yMin = limits_[2];
+            //	formula1:
+            //      r² = x² + y²
+            //      => y² = r² - x²
+            //  formula2:
+            //      ratio = w / h = (x-xMin) / (y-yMin)
+            //      => y-yMin = (x-xMin) / ratio
+            //      => y = (x-xMin) / ratio + yMin
+            //      => y = x/ratio - xMin/ratio + yMin
+            //  combine:
+            //      (x/ratio - xMin/ratio + yMin)² = r² - xMax²
+            //      => xMax²/ratio² - 2*(xMin/ratio + yMin)*x/ratio + (xMin/ratio + yMin)² = r² - xMax²
+            //      => (1/ratio²)*xMax²+xMax² - 2*((xMin/ratio + yMin)/ratio)*x + (xMin/ratio + yMin)² - r² = 0
+            //  abc formula:
+            //      a = (1/ratio²)+1
+            //      b = -2*((xMin/ratio + yMin)/ratio)
+            //      c = (xMin/ratio + yMin)² - r²
+            var a = 1/(ratio_*ratio_) + 1;
+            var b = -2 * (xMin/ratio_ + yMin)/ratio;
+            var c = xMin/ratio_ + yMin;
+            c = c*c - r*r;
+
+            var results = MyMath.getAbcFormulaResults(a, b, c);
+
+            var x = results[1];
+            var y = x/ratio_ - xMin/ratio_ + yMin;
+
+            return [xMin, x, yMin, y] as Area;
+        }
+ 
+        hidden function reachTunnelLength4Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
+            throw new MyTools.MyException("ToDo");
+        }
+
+        hidden function reachTunnelLength2Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
+            throw new MyTools.MyException("ToDo");
+        }
+
+        hidden function reachLimits(ratio as Decimal) as Area{
+            var x = limits[0];
+            var y = limits[2];
+            var w = limits[1] - x;
+            var h = limits[3] - y;
+            var ratioL = w / h;
+            if(ratioL < ratio){
+                var w2 = ratio * h;
+                x += (w - w2)/2;
+                return [x, x+w2, y, y+h] as Area;                
+            }else if(ratioL > ratio) {
+                var h2 = 1f * w / ratio;
+                y += (h - h2)/2;
+                return [x, x+w, y, y+h2] as Area;
+            }else{
+                return [x, x+w, y, y+h] as Area;
+            }
+        }
     }
 }
