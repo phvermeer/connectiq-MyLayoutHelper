@@ -45,7 +45,7 @@ module MyLayoutHelper{
 
         // protected vars
         hidden var limits as Area;
-        hidden var r as Float;
+        hidden var r as Number;
 
         function initialize(options as {
             :xMin as Numeric,
@@ -62,7 +62,7 @@ module MyLayoutHelper{
             var xMax = (options.hasKey(:xMax) ? options.get(:xMax) as Numeric : ds.screenWidth).toFloat();
             var yMin = (options.hasKey(:yMin) ? options.get(:yMin) as Numeric : 0).toFloat();
             var yMax = (options.hasKey(:yMax) ? options.get(:yMax) as Numeric : ds.screenHeight).toFloat();
-            r = 0.5 * ds.screenWidth;
+            r = ds.screenWidth / 2;
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
 
@@ -253,52 +253,14 @@ module MyLayoutHelper{
                     applyArea(obj, shape);
                     return;
                 }else if(exceededDirectionCount ==2){
-                    System.println("scenario 1b: limitation on two opposite sides (tunnel)");
-
-                    // limitation on two opposite sides (tunnel)
-                    //                          ┌─────────┐
-                    //	                     ┌──┘         └──┐  
-                    //	                   ┌─┘ ·           · └─┐
-                    //	                   │   ·           ·   │
-                    //	                   │   ·           ·   │
-                    //	                   │   ·           ·   │
-                    //	                   └─┐ ·           · ┌─┘
-                    //	                     └──┐         ┌──┘
-                    //	                        └─────────┘
-                    // (example with vertical orientation)
-
+                    // scenario 1b: limitation on two opposite sides (tunnel)
                     var direction = (exceededDirections == DIRECTION_TOP | DIRECTION_BOTTOM)
                         ? DIRECTION_RIGHT
                         : (exceededDirections == DIRECTION_LEFT | DIRECTION_RIGHT )
                             ? DIRECTION_TOP
                             : null;
                     if(direction != null){
-                        var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
-                        var aspectRatio_ = (direction == DIRECTION_TOP) ? aspectRatio : 1f / aspectRatio;
-                        var obj_ = limits_;
-
-                        var xMinL_ = limits_[0];
-                        var xMaxL_ = limits_[1];
-                        var yMinL_ = limits_[2];
-                        var yMaxL_ = limits_[3];
-
-                        if(keepAspectRatio){
-                            var widthL_ = xMaxL_ - xMinL_;
-                            var heightL_ = yMaxL_ - yMinL_;
-
-                            var height_ = widthL_ * aspectRatio_;
-                            var yMin_ = yMinL_ + (heightL_ - height_)/2;
-                            obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
-                        }else{
-                            // get the side that is farest from the middle
-                            var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
-                            var y_ = Math.sqrt(r*r - xFar_*xFar_);
-                            obj_ = [xMinL_, xMaxL_, -y_, y_] as Area;
-                        }
-
-                        // rotate back to initial orientation
-                        //obj = rotateArea(obj_, -nrOfQuadrants);
-                        obj = transposeArea(obj_, DIRECTION_TOP, direction);
+                        obj = reachTunnelLength4Points(aspectRatio, keepAspectRatio, direction);
                         applyArea(obj, shape);
                         return;
 
@@ -346,15 +308,23 @@ module MyLayoutHelper{
                     if(exceededDirections == 0){
                         applyArea(obj, shape);
                         return;
+                    }else{
+                        // scenario 1b: limitation on three sides (half tunnel)
+                        obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
+                        exceededDirections = checkLimits(obj);
+                        if(exceededDirections == 0){
+                            applyArea(obj, shape);
+                            return;
+                        }
                     }
 
                 }else{
                     throw new MyTools.MyException("This is not supposed to happen!");
                 }
     
-
+                // use exceeded directions to determine next scenario
+                applyArea(obj, shape);
                 throw new MyTools.MyException("ToDo: approach circle edge with two corners");
-
             }
 
             if(quadrantCount == 1){
@@ -388,10 +358,14 @@ module MyLayoutHelper{
             ] as Area;
         }
         hidden function applyArea(area as Area, drawable as IDrawable) as Void{
-            drawable.locX = area[0] + r;
-            drawable.width = area[1] - area[0];
-            drawable.locY = area[2] + r;
-            drawable.height = area[3] - area[2];
+            var xMin = Math.ceil(area[0]).toNumber();
+            var xMax = Math.floor(area[1]).toNumber();
+            var yMin = Math.ceil(area[2]).toNumber();
+            var yMax = Math.floor(area[3]).toNumber();
+            drawable.locX = xMin + r;
+            drawable.width = xMax - xMin;
+            drawable.locY = yMin + r;
+            drawable.height = yMax - yMin;
         }
 
         hidden function rotateArea(area as Area, nrOfQuadrants as Number) as Area{
@@ -509,6 +483,17 @@ module MyLayoutHelper{
 		}
 
 		hidden function reachCircleEdge_1Point(ratio as Decimal, direction as Direction) as Area{
+
+            //                          ╭─────────╮
+            //	                     ╭──╯         ╰──╮  
+            //	                   ╭─╯               ╰─╮
+            //	                   │                   │
+            //	                   │       ┏━━━━━━┱╌╌╌╌┤
+            //	                   │       ┃      ┃    │
+            //	                   ╰─╮     ┃      ┃  ╭─╯
+            //	                     ╰──╮  ┡━━━━━━╃──╯
+            //	                        ╰──┴──────╯
+
             var limits_ = transposeArea(limits, direction, DIRECTION_BOTTOM_RIGHT);
             var ratio_ = (
                 (direction == DIRECTION_BOTTOM_RIGHT) ||
@@ -548,11 +533,84 @@ module MyLayoutHelper{
         }
  
         hidden function reachTunnelLength4Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
-            throw new MyTools.MyException("ToDo");
+
+            // limitation on two opposite sides (tunnel)
+            //                          ╭┬───────┬╮
+            //	                     ╭──╯╎       ╎╰──╮  
+            //	                   ╭─╯   ┢━━━━━━━┪   ╰─╮
+            //	                   │     ┃       ┃     │
+            //	                   │     ┃       ┃     │
+            //	                   │     ┃       ┃     │
+            //	                   ╰─╮   ┡━━━━━━━┩   ╭─╯
+            //	                     ╰──╮╎       ╎╭──╯
+            //	                        ╰┴───────┴╯
+            // (example with vertical orientation)
+
+            var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
+            var aspectRatio_ = (direction == DIRECTION_TOP) ? aspectRatio : 1f / aspectRatio;
+            var obj_ = limits_;
+
+            var xMinL_ = limits_[0];
+            var xMaxL_ = limits_[1];
+            var yMinL_ = limits_[2];
+            var yMaxL_ = limits_[3];
+
+            if(keepAspectRatio){
+                var widthL_ = xMaxL_ - xMinL_;
+                var heightL_ = yMaxL_ - yMinL_;
+
+                var height_ = widthL_ * aspectRatio_;
+                var yMin_ = yMinL_ + (heightL_ - height_)/2;
+                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
+            }else{
+                // get the side that is farest from the middle
+                var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
+                var y_ = Math.sqrt(r*r - xFar_*xFar_);
+                obj_ = [xMinL_, xMaxL_, -y_, y_] as Area;
+            }
+
+            // rotate back to initial orientation
+            return transposeArea(obj_, DIRECTION_TOP, direction);
         }
 
         hidden function reachTunnelLength2Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
-            throw new MyTools.MyException("ToDo");
+            // limitation on three sides (half tunnel)
+            //                          ╭┬───────┬╮
+            //	                     ╭──╯┢━━━━━━━┪╰──╮  
+            //	                   ╭─╯   ┃       ┃   ╰─╮
+            //	                   │     ┃       ┃     │
+            //	                   │     ┡━━━━━━━┩     │
+            //	                   │     └╌╌╌╌╌╌╌┘     │
+            //	                   ╰─╮               ╭─╯
+            //	                     ╰──╮         ╭──╯
+            //	                        ╰─────────╯
+            // (example with vertical orientation)
+
+            var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
+            var aspectRatio_ = (direction == DIRECTION_TOP) ? aspectRatio : 1f / aspectRatio;
+            var obj_ = limits_;
+
+            var xMinL_ = limits_[0];
+            var xMaxL_ = limits_[1];
+            var yMinL_ = limits_[2];
+            var yMaxL_ = limits_[3];
+
+            if(keepAspectRatio){
+                var widthL_ = xMaxL_ - xMinL_;
+                var heightL_ = yMaxL_ - yMinL_;
+
+                var height_ = widthL_ * aspectRatio_;
+                var yMin_ = yMinL_ + (heightL_ - height_)/2;
+                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
+            }else{
+                // get the side that is farest from the middle
+                var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
+                var y_ = Math.sqrt(r*r - xFar_*xFar_);
+                obj_ = [xMinL_, xMaxL_, -y_, yMaxL_] as Area;
+            }
+
+            // rotate back to initial orientation
+            return transposeArea(obj_, DIRECTION_TOP, direction);
         }
 
         hidden function reachLimits(ratio as Decimal) as Area{
