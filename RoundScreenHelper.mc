@@ -117,10 +117,10 @@ module MyLayoutHelper{
                     var xMaxL = limits_[1];
                     var yMinL = limits_[2];
                     var yMaxL = limits_[3];
-                    var xMin = limits_[0];
-                    var xMax = limits_[1];
-                    var yMin = limits_[2];
-                    var yMax = limits_[3];
+                    var xMin = obj_[0];
+                    var xMax = obj_[1];
+                    var yMin = obj_[2];
+                    var yMax = obj_[3];
 
                     // check if the width fits inside the boundaries
                     if((xMax - xMin) > (xMaxL - xMinL)){
