@@ -420,21 +420,21 @@ module MyLayoutHelper{
 
 		hidden function reachCircleEdge_4Points(aspectRatio as Decimal) as Area{
             // approach circle edge with all four corners
-            var angle = Math.atan(aspectRatio);
+            var angle = Math.atan(1f/aspectRatio);
             var x = r * Math.cos(angle);
             var y = r * Math.sin(angle);
 
             return [-x, x, -y, y] as Area;
         }
 
-		hidden function reachCircleEdge_2Points(ratio as Decimal, direction as Direction) as Area{
+		hidden function reachCircleEdge_2Points(aspectRatio as Decimal, direction as Direction) as Area{
 			// will calculate the size to fit between left limit an right circle edge with given aspect ratio
 
             // transpose to orientation RIGHT
             var limits_ = transposeArea(limits, direction as Direction, DIRECTION_RIGHT);
-            var ratio_ = (direction & (DIRECTION_LEFT|DIRECTION_RIGHT) > 0)
-                ? ratio
-                : 1/ratio;
+            var ratio = (direction & (DIRECTION_LEFT|DIRECTION_RIGHT) > 0)
+                ? aspectRatio
+                : 1/aspectRatio;
             
 			var xMin = limits_[0];
 			var xMax = limits_[1];
@@ -469,12 +469,25 @@ module MyLayoutHelper{
             //          => y = (x - xMin) / (2 * ratio)
             //      ((x - xMin) / (2 * ratio))² = r² - xMin²
             //  use abc formula to solve x
-			var a = 1+Math.pow(ratio_/2, 2);
-			var b = -ratio_*ratio_/2 * xMin;
-			var c = Math.pow(ratio_/2 * xMin, 2) - r*r;
+            //      => (x * 1/(2*ratio) - xMin/(2*ratio))² = r² - xMin²
+            //      => x² * (1/(2*ratio))² - 2 * x * 1/(2*ratio) * xMin/(2*ratio) + (xMin/(2*ratio))² = r² - xMin²
+            //  a = (1/(2*ratio))² = 1 / (2*ratio)²
+            //  b = -2 * 1/(2*ratio) * xMin/(2*ratio) = -2 * xMin / (2*ratio)²
+            //  c = (xMin/(2*ratio))² + xMin² - r²  = xMin² / (2*ratio)² + xMin² - r² = xMin² * (1/(2*ratio)² + 1) -r²
+
+            var temp = 2*ratio;
+            var temp2 = temp*temp;
+
+//            var a = 1f/temp2;
+//            var b = -2f * xMin / temp2;
+//            var c = xMin*xMin * (1f + 1f/temp2) - r*r;
+
+			var a = 1+Math.pow(1f/(ratio*2), 2);
+			var b = -1f/(ratio*ratio*2) * xMin;
+			var c = Math.pow(1f/(ratio*2) * xMin, 2) - r*r;
 			var results = MyMath.getAbcFormulaResults(a, b, c);
 			var x = results[1];
-			var y = (x - xMin) / (1/ratio_ * 2);
+			var y = (x - xMin) / (ratio * 2);
 
             var obj_ = [xMin, x, -y, y] as Area;
 
@@ -547,7 +560,7 @@ module MyLayoutHelper{
             // (example with vertical orientation)
 
             var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
-            var aspectRatio_ = (direction == DIRECTION_TOP) ? aspectRatio : 1f / aspectRatio;
+            var ratio = (direction & (DIRECTION_TOP|DIRECTION_BOTTOM) > 0) ? aspectRatio : 1f / aspectRatio;
             var obj_ = limits_;
 
             var xMinL_ = limits_[0];
@@ -559,7 +572,7 @@ module MyLayoutHelper{
                 var widthL_ = xMaxL_ - xMinL_;
                 var heightL_ = yMaxL_ - yMinL_;
 
-                var height_ = widthL_ * aspectRatio_;
+                var height_ = widthL_ / ratio;
                 var yMin_ = yMinL_ + (heightL_ - height_)/2;
                 obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
             }else{
