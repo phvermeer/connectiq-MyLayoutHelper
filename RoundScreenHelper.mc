@@ -116,11 +116,9 @@ module MyLayoutHelper{
                     var xMinL = limits_[0];
                     var xMaxL = limits_[1];
                     var yMinL = limits_[2];
-                    var yMaxL = limits_[3];
                     var xMin = obj_[0];
                     var xMax = obj_[1];
                     var yMin = obj_[2];
-                    var yMax = obj_[3];
 
                     // check if the width fits inside the boundaries
                     if((xMax - xMin) > (xMaxL - xMinL)){
@@ -137,7 +135,6 @@ module MyLayoutHelper{
 
                     // check if the object fits against the top boundary
                     var w = xMax - xMin;
-                    var h = yMax - yMin;
                     var dx = 0;
                     var dy = 0;
                     if((xMaxCalc - xMinCalc) >= w){
@@ -437,9 +434,6 @@ module MyLayoutHelper{
                 : 1/aspectRatio;
             
 			var xMin = limits_[0];
-			var xMax = limits_[1];
- 			var yMin = limits_[2];
-			var yMax = limits_[3];
 
             //		yMax: the distance from the center to the limit corner touching the circle
             //		x: the distance from the center to both sides of the rectangle
@@ -474,13 +468,6 @@ module MyLayoutHelper{
             //  a = (1/(2*ratio))² = 1 / (2*ratio)²
             //  b = -2 * 1/(2*ratio) * xMin/(2*ratio) = -2 * xMin / (2*ratio)²
             //  c = (xMin/(2*ratio))² + xMin² - r²  = xMin² / (2*ratio)² + xMin² - r² = xMin² * (1/(2*ratio)² + 1) -r²
-
-            var temp = 2*ratio;
-            var temp2 = temp*temp;
-
-//            var a = 1f/temp2;
-//            var b = -2f * xMin / temp2;
-//            var c = xMin*xMin * (1f + 1f/temp2) - r*r;
 
 			var a = 1+Math.pow(1f/(ratio*2), 2);
 			var b = -1f/(ratio*ratio*2) * xMin;
@@ -574,7 +561,7 @@ module MyLayoutHelper{
 
                 var height_ = widthL_ / ratio;
                 var yMin_ = yMinL_ + (heightL_ - height_)/2;
-                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
+                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_] as Area;
             }else{
                 // get the side that is farest from the middle
                 var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
@@ -614,7 +601,7 @@ module MyLayoutHelper{
 
                 var height_ = widthL_ * aspectRatio_;
                 var yMin_ = yMinL_ + (heightL_ - height_)/2;
-                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_];
+                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_] as Area;
             }else{
                 // get the side that is farest from the middle
                 var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
