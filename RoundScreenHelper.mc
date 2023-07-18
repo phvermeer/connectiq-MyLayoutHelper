@@ -47,6 +47,8 @@ module MyLayoutHelper{
         hidden var limits as Area;
         hidden var r as Number;
 
+        protected var debugInfo as Array<String> = [] as Array<String>;
+
         function initialize(options as {
             :xMin as Numeric,
             :xMax as Numeric,
@@ -182,166 +184,182 @@ module MyLayoutHelper{
 
         function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void{
             // resize object to fit within outer limits
-
+            debugInfo = [] as Array<String>;
+            
             var aspectRatio = 1f * shape.width/shape.height;
             var obj = getArea(shape);
             var xMin = limits[0];
             var xMax = limits[1];
             var yMin = limits[2];
             var yMax = limits[3];
+            try{
 
-			// check in which quadrants the boundaries are outside the circle
-			//                          ┌─────────┐
-			//	                     ┌──┘    ·    └──┐  
-			//	                   ┌─┘       ·       └─┐
-			//	                   │      Q2 · Q1      │
-			//	                   │ · · · · + · · · · │
-			//	                   │      Q3 · Q4      │
-			//	                   └─┐       ·       ┌─┘
-			//	                     └──┐    ·    ┌──┘
-			//	                        └─────────┘
+                // check in which quadrants the boundaries are outside the circle
+                //                          ┌─────────┐
+                //	                     ┌──┘    ·    └──┐  
+                //	                   ┌─┘       ·       └─┐
+                //	                   │      Q2 · Q1      │
+                //	                   │ · · · · + · · · · │
+                //	                   │      Q3 · Q4      │
+                //	                   └─┐       ·       ┌─┘
+                //	                     └──┐    ·    ┌──┘
+                //	                        └─────────┘
 
-			var r2 = r*r;
-			var quadrants = 0;
+                var r2 = r*r;
+                var quadrants = 0;
 
-            // check when corner limit is outside the circle
-            var d = DIRECTION_TOP_RIGHT;
-            for(var i=0; i<4; i++){
-                var x = (d & DIRECTION_LEFT > 0)? -xMin : xMax;
-                var y = (d & DIRECTION_TOP > 0)? -yMin : yMax;
+                // check when corner limit is outside the circle
+                var d = DIRECTION_TOP_RIGHT;
+                for(var i=0; i<4; i++){
+                    var x = (d & DIRECTION_LEFT > 0)? -xMin : xMax;
+                    var y = (d & DIRECTION_TOP > 0)? -yMin : yMax;
 
-                if(x>0 && y>0 && (x*x + y*y > r2)){
-                    var q = (d == DIRECTION_TOP_RIGHT)
-                        ? QUADRANT_TOP_RIGHT
-                        : (d == DIRECTION_TOP_LEFT)
-                            ? QUADRANT_TOP_LEFT
-                            : (d == DIRECTION_BOTTOM_LEFT)
-                                ? QUADRANT_BOTTOM_LEFT
-                                : QUADRANT_BOTTOM_RIGHT;
+                    if(x>0 && y>0 && (x*x + y*y > r2)){
+                        var q = (d == DIRECTION_TOP_RIGHT)
+                            ? QUADRANT_TOP_RIGHT
+                            : (d == DIRECTION_TOP_LEFT)
+                                ? QUADRANT_TOP_LEFT
+                                : (d == DIRECTION_BOTTOM_LEFT)
+                                    ? QUADRANT_BOTTOM_LEFT
+                                    : QUADRANT_BOTTOM_RIGHT;
 
-                    quadrants |= q;
-                }
-                d *= 2;
-            }
-
-            // determine the strategie for optimizing the size
-            var quadrantCount = MyMath.countBitsHigh(quadrants);
-            var exceededDirections = null;
-
-            if(quadrantCount == 0){
-                // all within limits (rectangle)
-                if(keepAspectRatio){
-                    obj = reachLimits(aspectRatio);
-                }else{
-                    obj = limits;
+                        quadrants |= q;
                     }
-                    applyArea(obj, shape);
-                return;
-            }
+                    d *= 2;
+                }
 
-            if(quadrantCount == 4){
-                System.println("scenario 1a: reach with four corners to the circle");
-                obj = reachCircleEdge_4Points(aspectRatio);
+                // determine the strategie for optimizing the size
+                var quadrantCount = MyMath.countBitsHigh(quadrants);
+                var exceededDirections = null;
 
-                // check if this is within the limits
-                exceededDirections = checkLimits(obj);
-                var exceededDirectionCount = MyMath.countBitsHigh(exceededDirections as Number);
-                if(exceededDirectionCount == 0){
-                    applyArea(obj, shape);
-                    return;
-                }else if(exceededDirectionCount ==2){
-                    // scenario 1b: limitation on two opposite sides (tunnel)
-                    var direction = (exceededDirections == DIRECTION_TOP | DIRECTION_BOTTOM)
-                        ? DIRECTION_RIGHT
-                        : (exceededDirections == DIRECTION_LEFT | DIRECTION_RIGHT )
-                            ? DIRECTION_TOP
-                            : null;
-                    if(direction != null){
-                        obj = reachTunnelLength4Points(aspectRatio, keepAspectRatio, direction);
+
+                if(quadrantCount == 4){
+                    debugInfo.add("4 quadrants: Reach with four corners to the circle");
+                    obj = reachCircleEdge_4Points(aspectRatio);
+
+                    // check if this is within the limits
+                    exceededDirections = checkLimits(obj);
+                    var exceededDirectionCount = MyMath.countBitsHigh(exceededDirections as Number);
+                    if(exceededDirectionCount == 0){
                         applyArea(obj, shape);
                         return;
+                    }else if(exceededDirectionCount ==2){
+                        // scenario 1b: limitation on two opposite sides (tunnel)
+                        var direction = (exceededDirections == DIRECTION_TOP | DIRECTION_BOTTOM)
+                            ? DIRECTION_RIGHT
+                            : (exceededDirections == DIRECTION_LEFT | DIRECTION_RIGHT )
+                                ? DIRECTION_TOP
+                                : null;
+                        if(direction != null){
+                            obj = reachTunnelLength4Points(aspectRatio, keepAspectRatio, direction);
+                            applyArea(obj, shape);
+                            return;
+
+                        }else{
+                            throw new MyTools.MyException("This is not supposed to happen!");
+                        }
+                        
+                    }else{
+                        // reduce quadrants where circle can be reached
+                        if(exceededDirections & DIRECTION_TOP == DIRECTION_TOP){
+                            quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT);
+                        }
+                        if(exceededDirections & DIRECTION_LEFT == DIRECTION_LEFT){
+                            quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT);
+                        }
+                        if(exceededDirections & DIRECTION_BOTTOM == DIRECTION_BOTTOM){
+                            quadrants &= ~(QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT);
+                        }
+                        if(exceededDirections & DIRECTION_RIGHT == DIRECTION_RIGHT){
+                            quadrants &= ~(QUADRANT_BOTTOM_RIGHT|QUADRANT_TOP_RIGHT);
+                        }
+                        quadrantCount = MyMath.countBitsHigh(quadrants);
+                    }
+                }
+
+                if(quadrantCount == 3){
+                    debugInfo.add("3 quadrants: I don't know what to do...");
+                    throw new MyTools.MyException("3 Quadrants???");
+                }
+
+                if(quadrantCount == 2){
+                    debugInfo.add("2 quadrants: Approach circle edge with two corners");
+                    // approach circle edge with two corners
+                    var direction = (quadrants == QUADRANT_TOP_LEFT | QUADRANT_TOP_RIGHT)
+                        ? DIRECTION_TOP
+                        : (quadrants == QUADRANT_TOP_LEFT | QUADRANT_BOTTOM_LEFT)
+                            ? DIRECTION_LEFT
+                            : (quadrants == QUADRANT_BOTTOM_LEFT | QUADRANT_BOTTOM_RIGHT)
+                                ? DIRECTION_BOTTOM
+                                : (quadrants == QUADRANT_TOP_RIGHT | QUADRANT_BOTTOM_RIGHT)
+                                    ? DIRECTION_RIGHT
+                                    : null;
+                    if(direction != null){
+                        obj = reachCircleEdge_2Points(aspectRatio, direction);
+                        exceededDirections = checkLimits(obj);
+
+                        if(exceededDirections == 0){
+                            applyArea(obj, shape);
+                            return;
+                        }else{
+                            // scenario 1b: limitation on three sides (half tunnel)
+                            obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
+                            exceededDirections = checkLimits(obj);
+                            if(exceededDirections == 0){
+                                applyArea(obj, shape);
+                                return;
+                            }
+                        }
 
                     }else{
                         throw new MyTools.MyException("This is not supposed to happen!");
                     }
-                    
-                }else{
-                    // reduce quadrants where circle can be reached
-                    if(exceededDirections & DIRECTION_TOP == DIRECTION_TOP){
-                        quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT);
-                    }
-                    if(exceededDirections & DIRECTION_LEFT == DIRECTION_LEFT){
-                        quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT);
-                    }
-                    if(exceededDirections & DIRECTION_BOTTOM == DIRECTION_BOTTOM){
-                        quadrants &= ~(QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT);
-                    }
-                    if(exceededDirections & DIRECTION_RIGHT == DIRECTION_RIGHT){
-                        quadrants &= ~(QUADRANT_BOTTOM_RIGHT|QUADRANT_TOP_RIGHT);
-                    }
-                    quadrantCount = MyMath.countBitsHigh(quadrants);
+        
+                    // use exceeded directions to determine next scenario
+                    applyArea(obj, shape);
+                    throw new MyTools.MyException("ToDo: approach circle edge with two corners");
                 }
-            }
 
-            if(quadrantCount == 3){
-                throw new MyTools.MyException("3 Quadrants???");
-            }
-
-            if(quadrantCount == 2){
-                // approach circle edge with two corners
-                var direction = (quadrants == QUADRANT_TOP_LEFT | QUADRANT_TOP_RIGHT)
-                    ? DIRECTION_TOP
-                    : (quadrants == QUADRANT_TOP_LEFT | QUADRANT_BOTTOM_LEFT)
-                        ? DIRECTION_LEFT
-                        : (quadrants == QUADRANT_BOTTOM_LEFT | QUADRANT_BOTTOM_RIGHT)
-                            ? DIRECTION_BOTTOM
-                            : (quadrants == QUADRANT_TOP_RIGHT | QUADRANT_BOTTOM_RIGHT)
-                                ? DIRECTION_RIGHT
-                                : null;
-                if(direction != null){
-                    obj = reachCircleEdge_2Points(aspectRatio, direction);
-                    exceededDirections = checkLimits(obj);
-
-                    if(exceededDirections == 0){
+                if(quadrantCount == 1){
+                    // approach circle edge with one corners
+                    var quadrant = quadrants;
+                    var direction = (quadrant == QUADRANT_TOP_RIGHT)
+                        ? DIRECTION_TOP_RIGHT
+                        : (quadrant == QUADRANT_TOP_LEFT)
+                            ? DIRECTION_TOP_LEFT
+                            : (quadrant == QUADRANT_BOTTOM_LEFT)
+                                ? DIRECTION_BOTTOM_LEFT
+                                : (quadrant == QUADRANT_BOTTOM_RIGHT)
+                                    ? DIRECTION_BOTTOM_RIGHT
+                                    : null;
+                    if(direction != null){
+                        obj = reachCircleEdge_1Point(aspectRatio, direction);
                         applyArea(obj, shape);
                         return;
-                    }else{
-                        // scenario 1b: limitation on three sides (half tunnel)
-                        obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
-                        exceededDirections = checkLimits(obj);
-                        if(exceededDirections == 0){
-                            applyArea(obj, shape);
-                            return;
-                        }
                     }
-
-                }else{
-                    throw new MyTools.MyException("This is not supposed to happen!");
+                    throw new MyTools.MyException("ToDo: approach circle edge with one corners");
                 }
-    
-                // use exceeded directions to determine next scenario
-                applyArea(obj, shape);
-                throw new MyTools.MyException("ToDo: approach circle edge with two corners");
-            }
 
-            if(quadrantCount == 1){
-                // approach circle edge with one corners
-                var quadrant = quadrants;
-                var direction = (quadrant == QUADRANT_TOP_RIGHT)
-                    ? DIRECTION_TOP_RIGHT
-                    : (quadrant == QUADRANT_TOP_LEFT)
-                        ? DIRECTION_TOP_LEFT
-                        : (quadrant == QUADRANT_BOTTOM_LEFT)
-                            ? DIRECTION_BOTTOM_LEFT
-                            : (quadrant == QUADRANT_BOTTOM_RIGHT)
-                                ? DIRECTION_BOTTOM_RIGHT
-                                : null;
-                if(direction != null){
-                    obj = reachCircleEdge_1Point(aspectRatio, direction);
-                    applyArea(obj, shape);
+                if(quadrantCount == 0){
+                    // all within limits (rectangle)
+                    if(keepAspectRatio){
+                        obj = reachLimits(aspectRatio);
+                    }else{
+                        obj = limits;
+                        }
+                        applyArea(obj, shape);
                     return;
                 }
-                throw new MyTools.MyException("ToDo: approach circle edge with one corners");
+
+
+            }catch(ex instanceof MyTools.MyException){
+                ex.printStackTrace();
+                for(var i=0; i<debugInfo.size(); i++){
+                    System.println(debugInfo[i]);
+                }
+                System.println(ex.getErrorMessage());
+                System.println(Lang.format("Limits: x=[$1$..$2$], y=[$3$..$4$]", limits));
+                System.println(Lang.format("Result: x=[$1$..$2$], y=[$3$..$4$]", obj));
             }
         }
 
@@ -416,6 +434,7 @@ module MyLayoutHelper{
         }
 
 		hidden function reachCircleEdge_4Points(aspectRatio as Decimal) as Area{
+            debugInfo.add(Lang.format("reachCircleEdge_4Points(aspectRatio=$1$)",[aspectRatio]));
             // approach circle edge with all four corners
             var angle = Math.atan(1f/aspectRatio);
             var x = r * Math.cos(angle);
@@ -425,6 +444,8 @@ module MyLayoutHelper{
         }
 
 		hidden function reachCircleEdge_2Points(aspectRatio as Decimal, direction as Direction) as Area{
+            debugInfo.add(Lang.format("reachCircleEdge_2Points(aspectRatio=$1$, direction=$2$)",[aspectRatio, direction]));
+
 			// will calculate the size to fit between left limit an right circle edge with given aspect ratio
 
             // transpose to orientation RIGHT
@@ -483,6 +504,7 @@ module MyLayoutHelper{
 		}
 
 		hidden function reachCircleEdge_1Point(ratio as Decimal, direction as Direction) as Area{
+            debugInfo.add(Lang.format("reachCircleEdge_1Point(aspectRatio=$1$, direction=$2$)",[ratio, direction]));
 
             //                          ╭─────────╮
             //	                     ╭──╯         ╰──╮  
@@ -533,6 +555,7 @@ module MyLayoutHelper{
         }
  
         hidden function reachTunnelLength4Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
+            debugInfo.add(Lang.format("reachTunnelLength4Points(aspectRatio=$1$, keepAspectRatio=$2$, direction=$3$)",[aspectRatio, keepAspectRatio, direction]));
 
             // limitation on two opposite sides (tunnel)
             //                          ╭┬───────┬╮
@@ -574,6 +597,7 @@ module MyLayoutHelper{
         }
 
         hidden function reachTunnelLength2Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
+            debugInfo.add(Lang.format("reachTunnelLength2Points(aspectRatio=$1$, keepAspectRatio=$2$, direction=$3$)",[aspectRatio, keepAspectRatio, direction]));
             // limitation on three sides (half tunnel)
             //                          ╭┬───────┬╮
             //	                     ╭──╯┢━━━━━━━┪╰──╮  
@@ -613,18 +637,20 @@ module MyLayoutHelper{
             return transposeArea(obj_, DIRECTION_TOP, direction);
         }
 
-        hidden function reachLimits(ratio as Decimal) as Area{
+        hidden function reachLimits(aspectRatio as Decimal) as Area{
+            debugInfo.add(Lang.format("reachLimits(aspectRatio=$1$)",[aspectRatio]));
+
             var x = limits[0];
             var y = limits[2];
             var w = limits[1] - x;
             var h = limits[3] - y;
             var ratioL = w / h;
-            if(ratioL < ratio){
-                var w2 = ratio * h;
+            if(ratioL < aspectRatio){
+                var w2 = aspectRatio * h;
                 x += (w - w2)/2;
                 return [x, x+w2, y, y+h] as Area;                
-            }else if(ratioL > ratio) {
-                var h2 = 1f * w / ratio;
+            }else if(ratioL > aspectRatio) {
+                var h2 = 1f * w / aspectRatio;
                 y += (h - h2)/2;
                 return [x, x+w, y, y+h2] as Area;
             }else{
