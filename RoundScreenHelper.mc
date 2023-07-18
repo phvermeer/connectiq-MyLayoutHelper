@@ -657,11 +657,11 @@ module MyLayoutHelper{
             var w = limits[1] - x;
             var h = limits[3] - y;
             var ratioL = w / h;
-            if(ratioL < aspectRatio){
+            if(ratioL > aspectRatio){
                 var w2 = aspectRatio * h;
                 x += (w - w2)/2;
                 return [x, x+w2, y, y+h] as Area;                
-            }else if(ratioL > aspectRatio) {
+            }else if(ratioL < aspectRatio) {
                 var h2 = 1f * w / aspectRatio;
                 y += (h - h2)/2;
                 return [x, x+w, y, y+h2] as Area;
