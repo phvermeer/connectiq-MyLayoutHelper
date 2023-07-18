@@ -314,7 +314,7 @@ module MyLayoutHelper{
 
                             }else{
                                 // 2) exceeded limits on one or two sides
-                            obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
+                                obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
                             }
                             exceededDirections = checkLimits(obj);
                             if(exceededDirections == 0){
@@ -623,12 +623,12 @@ module MyLayoutHelper{
             // (example with vertical orientation)
 
             var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
-            var aspectRatio_ = (direction == DIRECTION_TOP) ? aspectRatio : 1f / aspectRatio;
+            var aspectRatio_ = (direction & (DIRECTION_TOP | DIRECTION_BOTTOM) > 0)? aspectRatio : 1f / aspectRatio;
             var obj_ = limits_;
 
             var xMinL_ = limits_[0];
             var xMaxL_ = limits_[1];
-            var yMinL_ = limits_[2];
+            // var yMinL_ = limits_[2];
             var yMaxL_ = limits_[3];
 
             // Get the available space
@@ -640,8 +640,8 @@ module MyLayoutHelper{
                 var heightMax_ = yMaxL_ + y_;
                 var widthL_ = xMaxL_ - xMinL_;
                 var height_ = widthL_ * aspectRatio_;
-                y_ += (heightMax_ - height_)/2;
-                obj_ = [xMinL_, xMaxL_, y_, y_ + height_] as Area;
+                y_ -= (heightMax_ - height_)/2;
+                obj_ = [xMinL_, xMaxL_, -y_, -y_ + height_] as Area;
             }else{
                 obj_ = [xMinL_, xMaxL_, -y_, yMaxL_] as Area;
             }
