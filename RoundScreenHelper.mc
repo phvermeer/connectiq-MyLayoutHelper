@@ -631,17 +631,18 @@ module MyLayoutHelper{
             var yMinL_ = limits_[2];
             var yMaxL_ = limits_[3];
 
-            if(keepAspectRatio){
-                var widthL_ = xMaxL_ - xMinL_;
-                var heightL_ = yMaxL_ - yMinL_;
+            // Get the available space
+            // get the side that is farest from the middle
+            var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
+            var y_ = Math.sqrt(r*r - xFar_*xFar_);
 
+            if(keepAspectRatio){
+                var heightMax_ = yMaxL_ + y_;
+                var widthL_ = xMaxL_ - xMinL_;
                 var height_ = widthL_ * aspectRatio_;
-                var yMin_ = yMinL_ + (heightL_ - height_)/2;
-                obj_ = [xMinL_, xMaxL_, yMin_, yMin_ + height_] as Area;
+                y_ += (heightMax_ - height_)/2;
+                obj_ = [xMinL_, xMaxL_, y_, y_ + height_] as Area;
             }else{
-                // get the side that is farest from the middle
-                var xFar_ = (xMaxL_ > -xMinL_) ? xMaxL_ : -xMinL_;
-                var y_ = Math.sqrt(r*r - xFar_*xFar_);
                 obj_ = [xMinL_, xMaxL_, -y_, yMaxL_] as Area;
             }
 
