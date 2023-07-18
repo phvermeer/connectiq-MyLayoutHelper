@@ -302,8 +302,20 @@ module MyLayoutHelper{
                             applyArea(obj, shape);
                             return;
                         }else{
-                            // scenario 1b: limitation on three sides (half tunnel)
+                            // determine next scenario:
+                            var _obj = transposeArea(obj, direction, DIRECTION_RIGHT);
+                            var _limits = transposeArea(limits, direction, DIRECTION_RIGHT);
+                            if(_obj[1] > _limits[1]){
+                                // 1) exceeded limits in given direction (flattened circle)
+                                direction = (direction & (DIRECTION_TOP|DIRECTION_BOTTOM) > 0)
+                                    ? DIRECTION_RIGHT
+                                    : DIRECTION_TOP;;
+                                obj = reachTunnelLength4Points(aspectRatio, keepAspectRatio, direction);
+
+                            }else{
+                                // 2) exceeded limits on one or two sides
                             obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
+                            }
                             exceededDirections = checkLimits(obj);
                             if(exceededDirections == 0){
                                 applyArea(obj, shape);
