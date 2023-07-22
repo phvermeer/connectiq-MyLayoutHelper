@@ -356,10 +356,16 @@ module MyLayoutHelper{
                                     : null;
                     if(direction != null){
                         obj = reachCircleEdge_1Point(r, limits, aspectRatio, direction);
+                        exceededDirections = checkLimits(limits, obj);
+                        if(exceededDirections == 0){
+                            applyArea(obj, shape);
+                            return;
+                        }                        
+
+                        obj = reachTunnelLength1Point(r, limits, aspectRatio, keepAspectRatio, direction);
                         applyArea(obj, shape);
                         return;
                     }
-                    throw new MyTools.MyException("ToDo: approach circle edge with one corners");
                 }
 
                 if(quadrantCount == 0){
@@ -368,8 +374,8 @@ module MyLayoutHelper{
                         obj = reachLimits(limits, aspectRatio);
                     }else{
                         obj = limits;
-                        }
-                        applyArea(obj, shape);
+                    }
+                    applyArea(obj, shape);
                     return;
                 }
 
@@ -544,31 +550,33 @@ module MyLayoutHelper{
             var yMin = limits_[2];
             //	formula1:
             //      r² = x² + y²
-            //      => y² = r² - x²
+            //      => x² = r² - y²
             //  formula2:
             //      ratio = w / h = (x-xMin) / (y-yMin)
-            //      => y-yMin = (x-xMin) / ratio
-            //      => y = (x-xMin) / ratio + yMin
-            //      => y = x/ratio - xMin/ratio + yMin
+            //      => (x-xMin) = (y-yMin) * ratio
+            //      => x = y * ratio + (xMin - yMin * ratio) = y * ratio + C where C = (xMin - yMin * ratio)
             //  combine:
-            //      (x/ratio - xMin/ratio + yMin)² = r² - xMax²
-            //      => xMax²/ratio² - 2*(xMin/ratio + yMin)*x/ratio + (xMin/ratio + yMin)² = r² - xMax²
-            //      => (1/ratio²)*xMax²+xMax² - 2*((xMin/ratio + yMin)/ratio)*x + (xMin/ratio + yMin)² - r² = 0
+            //      (y * ratio + C)² = r² - y²
+            //      y² * ratio² +       y * (2 * ratio * C) + C² = r² - y²
+            //      y² * (1 + ratio²) + y * (2 * ratio * C) + (C² - r²) = 0
+
             //  abc formula:
-            //      a = (1/ratio²)+1
-            //      b = -2*((xMin/ratio + yMin)/ratio)
-            //      c = (xMin/ratio + yMin)² - r²
-            var a = 1/(ratio_*ratio_) + 1;
-            var b = -2 * (xMin/ratio_ + yMin)/ratio;
-            var c = xMin/ratio_ + yMin;
-            c = c*c - r*r;
+            //      a = 1 + ratio²
+            //      b = 2 * ratio * C
+            //      c = C² - r²
+            //  where C = (xMin - yMin * ratio)
+            var C = xMin - yMin * ratio_;
+            var a = 1 + ratio_ * ratio_;
+            var b = 2 * ratio_ * C;
+            var c = C*C - r*r;
 
             var results = MyMath.getAbcFormulaResults(a, b, c);
 
-            var x = results[1];
-            var y = x/ratio_ - xMin/ratio_ + yMin;
+            var y = results[1];
+            var x = y * ratio_ + C;
 
-            return [xMin, x, yMin, y] as Area;
+            var obj = transposeArea([xMin, x, yMin, y] as Area, DIRECTION_BOTTOM_RIGHT, direction);
+            return obj;
         }
  
         hidden static function reachTunnelLength4Points(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
@@ -650,6 +658,39 @@ module MyLayoutHelper{
 
             // rotate back to initial orientation
             return transposeArea(obj_, DIRECTION_TOP, direction);
+        }
+
+        hidden static function reachTunnelLength1Point(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
+            // transpose to direction bottom-right
+            var limits_ = transposeArea(limits, direction, DIRECTION_BOTTOM_RIGHT);
+            var ratio_ = (direction == DIRECTION_BOTTOM_RIGHT) || (direction == DIRECTION_TOP_LEFT)
+                ? aspectRatio
+                : (direction == DIRECTION_TOP_RIGHT) || (direction == DIRECTION_BOTTOM_LEFT)
+                    ? 1/aspectRatio
+                    : null;
+            if(ratio_ != null){
+
+                // get x on circle for yMax
+                var xMin = limits_[0];
+                var yMin = limits_[2];
+                var yMax = limits_[3];
+
+                var x = Math.sqrt(r*r - yMax*yMax);
+                var obj_ = [xMin, x, yMin, yMax] as Area;
+
+                if(keepAspectRatio){
+                    var h = yMax - yMin;
+                    var w = x - xMin;
+                    var wCorrected = h * ratio_;
+                    var dw = w - wCorrected;
+                    obj_[0] += dw;
+                    obj_[1] -= dw;
+                }
+                var obj = transposeArea(obj_ as Area, DIRECTION_BOTTOM_RIGHT, direction);
+                return obj;
+            }else{
+                throw new MyTools.MyException(Lang.format("reachTunnelLength1Point received an invalid direction: ",[direction]));
+            }
         }
 
         hidden static function reachLimits(limits as Area, aspectRatio as Decimal) as Area{
