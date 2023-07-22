@@ -182,10 +182,20 @@ module MyLayoutHelper{
             applyArea(obj, shape);
         }
 
-        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void{
+        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean, margin as Number) as Void{
             // resize object to fit within outer limits
+
+            // apply margin
+            var r = self.r - margin;
+            var limits = [
+                self.limits[0] + margin,
+                self.limits[1] - margin,
+                self.limits[2] + margin,
+                self.limits[3] - margin,
+            ] as Area;
+
+
             debugInfo = [] as Array<String>;
-            
             var aspectRatio = 1f * shape.width/shape.height;
             var obj = getArea(shape);
             var xMin = limits[0];
@@ -235,10 +245,10 @@ module MyLayoutHelper{
 
                 if(quadrantCount == 4){
                     debugInfo.add("4 quadrants: Reach with four corners to the circle");
-                    obj = reachCircleEdge_4Points(aspectRatio);
+                    obj = reachCircleEdge_4Points(r, aspectRatio);
 
                     // check if this is within the limits
-                    exceededDirections = checkLimits(obj);
+                    exceededDirections = checkLimits(limits, obj);
                     var exceededDirectionCount = MyMath.countBitsHigh(exceededDirections as Number);
                     if(exceededDirectionCount == 0){
                         applyArea(obj, shape);
@@ -251,7 +261,7 @@ module MyLayoutHelper{
                                 ? DIRECTION_TOP
                                 : null;
                         if(direction != null){
-                            obj = reachTunnelLength4Points(aspectRatio, keepAspectRatio, direction);
+                            obj = reachTunnelLength4Points(r, limits, aspectRatio, keepAspectRatio, direction);
                             applyArea(obj, shape);
                             return;
 
@@ -295,8 +305,8 @@ module MyLayoutHelper{
                                     ? DIRECTION_RIGHT
                                     : null;
                     if(direction != null){
-                        obj = reachCircleEdge_2Points(aspectRatio, direction);
-                        exceededDirections = checkLimits(obj);
+                        obj = reachCircleEdge_2Points(r, limits, aspectRatio, direction);
+                        exceededDirections = checkLimits(limits, obj);
 
                         if(exceededDirections == 0){
                             applyArea(obj, shape);
@@ -310,13 +320,13 @@ module MyLayoutHelper{
                                 direction = (direction & (DIRECTION_TOP|DIRECTION_BOTTOM) > 0)
                                     ? DIRECTION_RIGHT
                                     : DIRECTION_TOP;;
-                                obj = reachTunnelLength4Points(aspectRatio, keepAspectRatio, direction);
+                                obj = reachTunnelLength4Points(r, limits, aspectRatio, keepAspectRatio, direction);
 
                             }else{
                                 // 2) exceeded limits on one or two sides
-                                obj = reachTunnelLength2Points(aspectRatio, keepAspectRatio, direction);
+                                obj = reachTunnelLength2Points(r, limits, aspectRatio, keepAspectRatio, direction);
                             }
-                            exceededDirections = checkLimits(obj);
+                            exceededDirections = checkLimits(limits, obj);
                             if(exceededDirections == 0){
                                 applyArea(obj, shape);
                                 return;
@@ -345,7 +355,7 @@ module MyLayoutHelper{
                                     ? DIRECTION_BOTTOM_RIGHT
                                     : null;
                     if(direction != null){
-                        obj = reachCircleEdge_1Point(aspectRatio, direction);
+                        obj = reachCircleEdge_1Point(r, limits, aspectRatio, direction);
                         applyArea(obj, shape);
                         return;
                     }
@@ -355,7 +365,7 @@ module MyLayoutHelper{
                 if(quadrantCount == 0){
                     // all within limits (rectangle)
                     if(keepAspectRatio){
-                        obj = reachLimits(aspectRatio);
+                        obj = reachLimits(limits, aspectRatio);
                     }else{
                         obj = limits;
                         }
@@ -395,7 +405,7 @@ module MyLayoutHelper{
             drawable.height = yMax - yMin;
         }
 
-        hidden function rotateArea(area as Area, nrOfQuadrants as Number) as Area{
+        hidden static function rotateArea(area as Area, nrOfQuadrants as Number) as Area{
             // to support negative numbers
             while(nrOfQuadrants<0){
                 nrOfQuadrants += 4;
@@ -414,7 +424,7 @@ module MyLayoutHelper{
             }
         }
 
-        hidden function transposeArea(obj as Area, from as Direction, to as Direction) as Area{
+        hidden static function transposeArea(obj as Area, from as Direction, to as Direction) as Area{
             var counter = 0;
             // Direction values: 2^[0..3]
             while(from < to){
@@ -428,7 +438,7 @@ module MyLayoutHelper{
             return rotateArea(obj, counter);
         }
 
-        hidden function checkLimits(area as Area) as Direction|Number{
+        hidden static function checkLimits(limits as Area, area as Area) as Direction|Number{
             var exceededDirections = 0;
             if(area[0] < limits[0]){
                 exceededDirections |= DIRECTION_LEFT;
@@ -445,8 +455,7 @@ module MyLayoutHelper{
             return exceededDirections;
         }
 
-		hidden function reachCircleEdge_4Points(aspectRatio as Decimal) as Area{
-            debugInfo.add(Lang.format("reachCircleEdge_4Points(aspectRatio=$1$)",[aspectRatio]));
+		hidden static function reachCircleEdge_4Points(r as Number, aspectRatio as Decimal) as Area{
             // approach circle edge with all four corners
             var angle = Math.atan(1f/aspectRatio);
             var x = r * Math.cos(angle);
@@ -455,9 +464,7 @@ module MyLayoutHelper{
             return [-x, x, -y, y] as Area;
         }
 
-		hidden function reachCircleEdge_2Points(aspectRatio as Decimal, direction as Direction) as Area{
-            debugInfo.add(Lang.format("reachCircleEdge_2Points(aspectRatio=$1$, direction=$2$)",[aspectRatio, direction]));
-
+		hidden static function reachCircleEdge_2Points(r as Number, limits as Area, aspectRatio as Decimal, direction as Direction) as Area{
 			// will calculate the size to fit between left limit an right circle edge with given aspect ratio
 
             // transpose to orientation RIGHT
@@ -515,9 +522,7 @@ module MyLayoutHelper{
             return transposeArea(obj_, DIRECTION_RIGHT, direction);
 		}
 
-		hidden function reachCircleEdge_1Point(ratio as Decimal, direction as Direction) as Area{
-            debugInfo.add(Lang.format("reachCircleEdge_1Point(aspectRatio=$1$, direction=$2$)",[ratio, direction]));
-
+		hidden static function reachCircleEdge_1Point(r as Number, limits as Area, ratio as Decimal, direction as Direction) as Area{
             //                          ╭─────────╮
             //	                     ╭──╯         ╰──╮  
             //	                   ╭─╯               ╰─╮
@@ -566,9 +571,7 @@ module MyLayoutHelper{
             return [xMin, x, yMin, y] as Area;
         }
  
-        hidden function reachTunnelLength4Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
-            debugInfo.add(Lang.format("reachTunnelLength4Points(aspectRatio=$1$, keepAspectRatio=$2$, direction=$3$)",[aspectRatio, keepAspectRatio, direction]));
-
+        hidden static function reachTunnelLength4Points(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
             // limitation on two opposite sides (tunnel)
             //                          ╭┬───────┬╮
             //	                     ╭──╯╎       ╎╰──╮  
@@ -608,8 +611,7 @@ module MyLayoutHelper{
             return transposeArea(obj_, DIRECTION_TOP, direction);
         }
 
-        hidden function reachTunnelLength2Points(aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
-            debugInfo.add(Lang.format("reachTunnelLength2Points(aspectRatio=$1$, keepAspectRatio=$2$, direction=$3$)",[aspectRatio, keepAspectRatio, direction]));
+        hidden static function reachTunnelLength2Points(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
             // limitation on three sides (half tunnel)
             //                          ╭┬───────┬╮
             //	                     ╭──╯┢━━━━━━━┪╰──╮  
@@ -650,9 +652,7 @@ module MyLayoutHelper{
             return transposeArea(obj_, DIRECTION_TOP, direction);
         }
 
-        hidden function reachLimits(aspectRatio as Decimal) as Area{
-            debugInfo.add(Lang.format("reachLimits(aspectRatio=$1$)",[aspectRatio]));
-
+        hidden static function reachLimits(limits as Area, aspectRatio as Decimal) as Area{
             var x = limits[0];
             var y = limits[2];
             var w = limits[1] - x;
