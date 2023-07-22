@@ -235,7 +235,10 @@ module MyLayoutHelper{
 
                         quadrants |= q;
                     }
-                    d *= 2;
+                    // next corner
+                    d = d << 1;
+                    d += (d/16);
+                    d &= 15;
                 }
 
                 // determine the strategie for optimizing the size
@@ -360,10 +363,8 @@ module MyLayoutHelper{
                         if(exceededDirections == 0){
                             applyArea(obj, shape);
                             return;
-                        }                        
-
-                        obj = reachTunnelLength1Point(r, limits, aspectRatio, keepAspectRatio, direction);
-                        applyArea(obj, shape);
+                        }         
+                        System.println("resizeToMax Failed");
                         return;
                     }
                 }
@@ -432,14 +433,17 @@ module MyLayoutHelper{
 
         hidden static function transposeArea(obj as Area, from as Direction, to as Direction) as Area{
             var counter = 0;
+            var max = 4;
+            var mask = 15;
             // Direction values: 2^[0..3]
-            while(from < to){
+            while(from != to && counter < max){
+                from = from << 1; // shift bits
+                from += (from/16); // overflow bits will be added at the front
+                from &= mask;
                 counter++;
-                from *= 2;
             }
-            while(from > to){
-                counter--;
-                from /= 2;
+            if(from != to){
+                System.println(Lang.format("transposeArea(from=$1$, to=$2$) FAILED", [from, to]));
             }
             return rotateArea(obj, counter);
         }
@@ -528,7 +532,7 @@ module MyLayoutHelper{
             return transposeArea(obj_, DIRECTION_RIGHT, direction);
 		}
 
-		hidden static function reachCircleEdge_1Point(r as Number, limits as Area, ratio as Decimal, direction as Direction) as Area{
+		hidden static function reachCircleEdge_1Point(r as Number, limits as Area, ratio as Decimal, corner as Direction) as Area{
             //                          ╭─────────╮
             //	                     ╭──╯         ╰──╮  
             //	                   ╭─╯               ╰─╮
@@ -539,15 +543,17 @@ module MyLayoutHelper{
             //	                     ╰──╮  ┡━━━━━━╃──╯
             //	                        ╰──┴──────╯
 
-            var limits_ = transposeArea(limits, direction, DIRECTION_BOTTOM_RIGHT);
+            var limits_ = transposeArea(limits, corner, DIRECTION_BOTTOM_RIGHT);
             var ratio_ = (
-                (direction == DIRECTION_BOTTOM_RIGHT) ||
-                (direction == DIRECTION_TOP_LEFT))
+                (corner == DIRECTION_BOTTOM_RIGHT) ||
+                (corner == DIRECTION_TOP_LEFT))
                 ? 1/ratio
                 : ratio;
 
             var xMin = limits_[0];
+            var xMax = limits_[1];
             var yMin = limits_[2];
+            var yMax = limits_[3];
             //	formula1:
             //      r² = x² + y²
             //      => x² = r² - y²
@@ -575,7 +581,24 @@ module MyLayoutHelper{
             var y = results[1];
             var x = y * ratio_ + C;
 
-            var obj = transposeArea([xMin, x, yMin, y] as Area, DIRECTION_BOTTOM_RIGHT, direction);
+            var obj_ = [xMin, x, yMin, y] as Area;
+            
+            // Check limits (do it here, because the direction is standarized here)
+            var exceededDirections = checkLimits(limits_, obj_);
+            if(exceededDirections != 0){
+                // reach tunnel single corner
+                if(exceededDirections == DIRECTION_RIGHT){
+                    // limited by xMax => calculate y
+                    x = xMax;
+                    y = Math.sqrt(r*r-x*x);
+                }else if(exceededDirections == DIRECTION_BOTTOM){
+                    // limited by yMax => calculate x
+                    y = yMax;
+                    x = Math.sqrt(r*r-y*y);
+                }
+                obj_ = [xMin, x, yMin, y] as Area;
+            }
+            var obj = transposeArea(obj_, DIRECTION_BOTTOM_RIGHT, corner);
             return obj;
         }
  
@@ -659,7 +682,7 @@ module MyLayoutHelper{
             // rotate back to initial orientation
             return transposeArea(obj_, DIRECTION_TOP, direction);
         }
-
+/*
         hidden static function reachTunnelLength1Point(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
             // transpose to direction bottom-right
             var limits_ = transposeArea(limits, direction, DIRECTION_BOTTOM_RIGHT);
@@ -675,6 +698,7 @@ module MyLayoutHelper{
                 var yMin = limits_[2];
                 var yMax = limits_[3];
 
+                if()
                 var x = Math.sqrt(r*r - yMax*yMax);
                 var obj_ = [xMin, x, yMin, yMax] as Area;
 
@@ -692,7 +716,7 @@ module MyLayoutHelper{
                 throw new MyTools.MyException(Lang.format("reachTunnelLength1Point received an invalid direction: ",[direction]));
             }
         }
-
+*/
         hidden static function reachLimits(limits as Area, aspectRatio as Decimal) as Area{
             var x = limits[0];
             var y = limits[2];
