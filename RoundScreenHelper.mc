@@ -310,30 +310,28 @@ module MyLayoutHelper{
                     if(direction != null){
                         obj = reachCircleEdge_2Points(r, limits, aspectRatio, direction);
                         exceededDirections = checkLimits(limits, obj);
-
+                        var exceededCount = MyMath.countBitsHigh(exceededDirections as Number);
+                        if(exceededCount == 0){
+                            applyArea(obj, shape);
+                            return;
+                        }else if(exceededCount == 2){
+                            // exceeded limits on two sides => tunnel
+                            obj = reachTunnelLength2Points(r, limits, aspectRatio, keepAspectRatio, direction);
+                        }else if(exceededCount == 1){
+                            if(direction == exceededDirections){
+                                // exceeded in given direction
+                                obj = reachFlattenedCircle(r, limits, aspectRatio, keepAspectRatio, direction);
+                            }else{
+                                // exceeded limit on one side
+                                var opposite = rotateDirections(exceededDirections as Direction, 2);
+                                direction |= opposite;
+                                obj = reachCircleEdge_1Point(r, limits, aspectRatio, direction as Direction);
+                            }
+                        }
+                        exceededDirections = checkLimits(limits, obj);
                         if(exceededDirections == 0){
                             applyArea(obj, shape);
                             return;
-                        }else{
-                            // determine next scenario:
-                            var _obj = transposeArea(obj, direction, DIRECTION_RIGHT);
-                            var _limits = transposeArea(limits, direction, DIRECTION_RIGHT);
-                            if(_obj[1] > _limits[1]){
-                                // 1) exceeded limits in given direction (flattened circle)
-                                direction = (direction & (DIRECTION_TOP|DIRECTION_BOTTOM) > 0)
-                                    ? DIRECTION_RIGHT
-                                    : DIRECTION_TOP;;
-                                obj = reachTunnelLength4Points(r, limits, aspectRatio, keepAspectRatio, direction);
-
-                            }else{
-                                // 2) exceeded limits on one or two sides
-                                obj = reachTunnelLength2Points(r, limits, aspectRatio, keepAspectRatio, direction);
-                            }
-                            exceededDirections = checkLimits(limits, obj);
-                            if(exceededDirections == 0){
-                                applyArea(obj, shape);
-                                return;
-                            }
                         }
 
                     }else{
@@ -401,6 +399,7 @@ module MyLayoutHelper{
                 drawable.locY + drawable.height - r
             ] as Area;
         }
+
         hidden function applyArea(area as Area, drawable as IDrawable) as Void{
             var xMin = Math.ceil(area[0]).toNumber();
             var xMax = Math.floor(area[1]).toNumber();
@@ -446,6 +445,14 @@ module MyLayoutHelper{
                 System.println(Lang.format("transposeArea(from=$1$, to=$2$) FAILED", [from, to]));
             }
             return rotateArea(obj, counter);
+        }
+
+        hidden static function rotateDirections(direction as Direction, count as Number) as Direction{
+            var mask = 15;
+            direction = direction << count;
+            direction += direction/16;
+            direction &= mask;
+            return direction as Direction;
         }
 
         hidden static function checkLimits(limits as Area, area as Area) as Direction|Number{
@@ -682,41 +689,33 @@ module MyLayoutHelper{
             // rotate back to initial orientation
             return transposeArea(obj_, DIRECTION_TOP, direction);
         }
-/*
-        hidden static function reachTunnelLength1Point(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
-            // transpose to direction bottom-right
-            var limits_ = transposeArea(limits, direction, DIRECTION_BOTTOM_RIGHT);
-            var ratio_ = (direction == DIRECTION_BOTTOM_RIGHT) || (direction == DIRECTION_TOP_LEFT)
+
+        hidden static function reachFlattenedCircle(r as Number, limits as Area, aspectRatio as Decimal, keepAspectRatio as Boolean, direction as Direction) as Area{
+            var limits_ = transposeArea(limits, direction, DIRECTION_RIGHT);
+            var ratio = (direction & (DIRECTION_RIGHT | DIRECTION_LEFT) > 0)
                 ? aspectRatio
-                : (direction == DIRECTION_TOP_RIGHT) || (direction == DIRECTION_BOTTOM_LEFT)
-                    ? 1/aspectRatio
-                    : null;
-            if(ratio_ != null){
+                : 1/aspectRatio;
 
-                // get x on circle for yMax
-                var xMin = limits_[0];
-                var yMin = limits_[2];
-                var yMax = limits_[3];
+            var xMin = limits_[0];
+            var xMax = limits_[1];
 
-                if()
-                var x = Math.sqrt(r*r - yMax*yMax);
-                var obj_ = [xMin, x, yMin, yMax] as Area;
+            var obj_ = null;
+            if(keepAspectRatio){
+                // get area with given ratio between xMin and xMax
+                var w = xMax - xMin;
+                var h = w / ratio;
+                var y = h/2;
+                obj_ = [xMin, xMax, -y, y] as Area;
 
-                if(keepAspectRatio){
-                    var h = yMax - yMin;
-                    var w = x - xMin;
-                    var wCorrected = h * ratio_;
-                    var dw = w - wCorrected;
-                    obj_[0] += dw;
-                    obj_[1] -= dw;
-                }
-                var obj = transposeArea(obj_ as Area, DIRECTION_BOTTOM_RIGHT, direction);
-                return obj;
             }else{
-                throw new MyTools.MyException(Lang.format("reachTunnelLength1Point received an invalid direction: ",[direction]));
+                // get y when reaching circle at xMax
+                var r2 = r*r;
+                var y = Math.sqrt(r2 - xMax*xMax);
+                obj_ = [xMin, xMax, -y, y] as Area;
             }
+            return transposeArea(obj_, DIRECTION_RIGHT, direction);
         }
-*/
+        
         hidden static function reachLimits(limits as Area, aspectRatio as Decimal) as Area{
             var x = limits[0];
             var y = limits[2];
