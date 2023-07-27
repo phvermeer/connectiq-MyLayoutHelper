@@ -679,7 +679,7 @@ module MyLayoutHelper{
             if(keepAspectRatio){
                 var heightMax_ = yMaxL_ + y_;
                 var widthL_ = xMaxL_ - xMinL_;
-                var height_ = widthL_ * aspectRatio_;
+                var height_ = widthL_ / aspectRatio_;
                 y_ -= (heightMax_ - height_)/2;
                 obj_ = [xMinL_, xMaxL_, -y_, -y_ + height_] as Area;
             }else{
