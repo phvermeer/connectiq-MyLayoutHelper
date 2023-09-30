@@ -68,6 +68,15 @@ module MyLayoutHelper{
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
 
+        function getLimits() as Array<Numeric>
+        {
+            return [
+                limits[0] + r,
+                limits[1] + r,
+                limits[2] + r,
+                limits[3] + r,
+            ] as Array<Numeric>;
+        }
         function setLimits(xMin as Numeric, xMax as Numeric, yMin as Numeric, yMax as Numeric) as Void{
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
