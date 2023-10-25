@@ -47,7 +47,7 @@ module MyLayoutHelper{
         hidden var limits as Area;
         hidden var r as Number;
 
-        protected var debugInfo as Array<String> = [] as Array<String>;
+        var debugInfo as Array<String> = [] as Array<String>;
 
         function initialize(options as {
             :xMin as Numeric,
@@ -68,8 +68,7 @@ module MyLayoutHelper{
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
 
-        function getLimits() as Array<Numeric>
-        {
+        function getLimits() as Array<Numeric>{
             return [
                 limits[0] + r,
                 limits[1] + r,
@@ -191,7 +190,22 @@ module MyLayoutHelper{
             applyArea(obj, shape);
         }
 
+        hidden static function flipArea(area as Area, horizontalFlip as Boolean, verticalFlip as Boolean) as Void{
+            if(horizontalFlip){
+                var temp = area[0];
+                area[0] = -area[1];
+                area[1] = -temp;
+            }
+            if(verticalFlip){
+                var temp = area[2];
+                area[2] = -area[3];
+                area[3] = -temp;
+            }
+        }
+
         function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean, margin as Number) as Void{
+            debugInfo = [] as Array<String>;
+
             // resize object to fit within outer limits
 
             // apply margin
@@ -203,190 +217,298 @@ module MyLayoutHelper{
                 self.limits[3] - margin,
             ] as Area;
 
+            // Flip x-axis and y-as to align to bottom-right
+            var xFlipped = limits[1] < -limits[0];
+            var yFlipped = limits[3] < -limits[2];
+            flipArea(limits, xFlipped, yFlipped);
 
-            debugInfo = [] as Array<String>;
-            var aspectRatio = 1f * shape.width/shape.height;
-            var obj = getArea(shape);
             var xMin = limits[0];
             var xMax = limits[1];
             var yMin = limits[2];
             var yMax = limits[3];
+
+            var w = shape.width;
+            var h = shape.height;
+            var aspectRatio = (w==0 || h==0)
+                ? 1
+                : w/h;
+            debugInfo.add(Lang.format("ratio = w/h = $1$/$2$ = $3$", [w,h,aspectRatio]));
+
+            // update the area with the final result
+            var area = [xMin, xMax, yMin, yMax] as Area;
+
             try{
-
-                // check in which quadrants the boundaries are outside the circle
-                //                          ┌─────────┐
-                //	                     ┌──┘    ·    └──┐  
-                //	                   ┌─┘       ·       └─┐
-                //	                   │      Q2 · Q1      │
-                //	                   │ · · · · + · · · · │
-                //	                   │      Q3 · Q4      │
-                //	                   └─┐       ·       ┌─┘
-                //	                     └──┐    ·    ┌──┘
-                //	                        └─────────┘
-
                 var r2 = r*r;
-                var quadrants = 0;
-
-                // check when corner limit is outside the circle
-                var d = DIRECTION_TOP_RIGHT;
-                for(var i=0; i<4; i++){
-                    var x = (d & DIRECTION_LEFT > 0)? -xMin : xMax;
-                    var y = (d & DIRECTION_TOP > 0)? -yMin : yMax;
-
-                    if(x>0 && y>0 && (x*x + y*y > r2)){
-                        var q = (d == DIRECTION_TOP_RIGHT)
-                            ? QUADRANT_TOP_RIGHT
-                            : (d == DIRECTION_TOP_LEFT)
-                                ? QUADRANT_TOP_LEFT
-                                : (d == DIRECTION_BOTTOM_LEFT)
-                                    ? QUADRANT_BOTTOM_LEFT
-                                    : QUADRANT_BOTTOM_RIGHT;
-
-                        quadrants |= q;
-                    }
-                    // next corner
-                    d = d << 1;
-                    d += (d/16);
-                    d &= 15;
+                // Check if whole limit area is outside the circle
+                if(xMin*xMax>=0 && yMin*yMax>=0 && xMin*xMin + yMin*yMin >= r2){
+                    // impossible mission
+                    throw new MyTools.MyException("invalid limits (outside the circle)");
                 }
 
-                // determine the strategie for optimizing the size
-                var quadrantCount = MyMath.countBitsHigh(quadrants);
-                var exceededDirections = null;
-
-
-                if(quadrantCount == 4){
-                    debugInfo.add("4 quadrants: Reach with four corners to the circle");
-                    obj = reachCircleEdge_4Points(r, aspectRatio);
-
-                    // check if this is within the limits
-                    exceededDirections = checkLimits(limits, obj);
-                    var exceededDirectionCount = MyMath.countBitsHigh(exceededDirections as Number);
-                    if(exceededDirectionCount == 0){
-                        applyArea(obj, shape);
-                        return;
-                    }else if(exceededDirectionCount ==2){
-                        // scenario 1b: limitation on two opposite sides (tunnel)
-                        var direction = (exceededDirections == DIRECTION_TOP | DIRECTION_BOTTOM)
-                            ? DIRECTION_RIGHT
-                            : (exceededDirections == DIRECTION_LEFT | DIRECTION_RIGHT )
-                                ? DIRECTION_TOP
-                                : null;
-                        if(direction != null){
-                            obj = reachTunnelLength4Points(r, limits, aspectRatio, keepAspectRatio, direction);
-                            applyArea(obj, shape);
-                            return;
-
-                        }else{
-                            throw new MyTools.MyException("This is not supposed to happen!");
-                        }
-                        
-                    }else{
-                        // reduce quadrants where circle can be reached
-                        if(exceededDirections & DIRECTION_TOP == DIRECTION_TOP){
-                            quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_TOP_RIGHT);
-                        }
-                        if(exceededDirections & DIRECTION_LEFT == DIRECTION_LEFT){
-                            quadrants &= ~(QUADRANT_TOP_LEFT|QUADRANT_BOTTOM_LEFT);
-                        }
-                        if(exceededDirections & DIRECTION_BOTTOM == DIRECTION_BOTTOM){
-                            quadrants &= ~(QUADRANT_BOTTOM_LEFT|QUADRANT_BOTTOM_RIGHT);
-                        }
-                        if(exceededDirections & DIRECTION_RIGHT == DIRECTION_RIGHT){
-                            quadrants &= ~(QUADRANT_BOTTOM_RIGHT|QUADRANT_TOP_RIGHT);
-                        }
-                        quadrantCount = MyMath.countBitsHigh(quadrants);
-                    }
-                }
-
-                if(quadrantCount == 3){
-                    debugInfo.add("3 quadrants: I don't know what to do...");
-                    throw new MyTools.MyException("3 Quadrants???");
-                }
-
-                if(quadrantCount == 2){
-                    debugInfo.add("2 quadrants: Approach circle edge with two corners");
-                    // approach circle edge with two corners
-                    var direction = (quadrants == QUADRANT_TOP_LEFT | QUADRANT_TOP_RIGHT)
-                        ? DIRECTION_TOP
-                        : (quadrants == QUADRANT_TOP_LEFT | QUADRANT_BOTTOM_LEFT)
-                            ? DIRECTION_LEFT
-                            : (quadrants == QUADRANT_BOTTOM_LEFT | QUADRANT_BOTTOM_RIGHT)
-                                ? DIRECTION_BOTTOM
-                                : (quadrants == QUADRANT_TOP_RIGHT | QUADRANT_BOTTOM_RIGHT)
-                                    ? DIRECTION_RIGHT
-                                    : null;
-                    if(direction != null){
-                        obj = reachCircleEdge_2Points(r, limits, aspectRatio, direction);
-                        exceededDirections = checkLimits(limits, obj);
-                        var exceededCount = MyMath.countBitsHigh(exceededDirections as Number);
-                        if(exceededCount == 0){
-                            applyArea(obj, shape);
-                            return;
-                        }else if(exceededCount == 2){
-                            // exceeded limits on two sides => tunnel
-                            obj = reachTunnelLength2Points(r, limits, aspectRatio, keepAspectRatio, direction);
-                        }else if(exceededCount == 1){
-                            if(direction == exceededDirections){
-                                // exceeded in given direction
-                                obj = reachFlattenedCircle(r, limits, aspectRatio, keepAspectRatio, direction);
-                            }else{
-                                // exceeded limit on one side
-                                var opposite = rotateDirections(exceededDirections as Direction, 2);
-                                direction |= opposite;
-                                obj = reachCircleEdge_1Point(r, limits, aspectRatio, direction as Direction);
-                            }
-                        }
-                        exceededDirections = checkLimits(limits, obj);
-                        if(exceededDirections == 0){
-                            applyArea(obj, shape);
-                            return;
-                        }
-
-                    }else{
-                        throw new MyTools.MyException("This is not supposed to happen!");
-                    }
-        
-                    // use exceeded directions to determine next scenario
-                    applyArea(obj, shape);
-                    throw new MyTools.MyException("ToDo: approach circle edge with two corners");
-                }
-
-                if(quadrantCount == 1){
-                    // approach circle edge with one corners
-                    var quadrant = quadrants;
-                    var direction = (quadrant == QUADRANT_TOP_RIGHT)
-                        ? DIRECTION_TOP_RIGHT
-                        : (quadrant == QUADRANT_TOP_LEFT)
-                            ? DIRECTION_TOP_LEFT
-                            : (quadrant == QUADRANT_BOTTOM_LEFT)
-                                ? DIRECTION_BOTTOM_LEFT
-                                : (quadrant == QUADRANT_BOTTOM_RIGHT)
-                                    ? DIRECTION_BOTTOM_RIGHT
-                                    : null;
-                    if(direction != null){
-                        obj = reachCircleEdge_1Point(r, limits, aspectRatio, direction);
-                        exceededDirections = checkLimits(limits, obj);
-                        if(exceededDirections == 0){
-                            applyArea(obj, shape);
-                            return;
-                        }         
-                        System.println("resizeToMax Failed");
-                        return;
-                    }
-                }
-
-                if(quadrantCount == 0){
-                    // all within limits (rectangle)
+                // Check if all limits are within the circle
+                if(xMax*xMax + yMax*yMax <= r2){
+                    // all within limits check aspect ratio
                     if(keepAspectRatio){
-                        obj = reachLimits(limits, aspectRatio);
-                    }else{
-                        obj = limits;
+                        w = xMax-xMin;
+                        h = yMax-yMin;
+                        var ratio = w/h;
+                        if(ratio>aspectRatio){
+                            var w_ = h*aspectRatio;
+                            var dx = (w-w_)/2;
+                            area[0] += dx;
+                            area[1] -= dx;
+                        }else{
+                            var h_ = w/aspectRatio;
+                            var dy = (h-h_)/2;
+                            area[2] += dy;
+                            area[3] -= dy;
+                        }
                     }
-                    applyArea(obj, shape);
                     return;
                 }
 
+                // Option 2: Try if all corners can be resized to the circle edges and still be within given limits
+                // approach circle edge with all four corners
+                var angle = Math.atan(1/aspectRatio);
+                var x = r * Math.cos(angle);
+                var y = r * Math.sin(angle);
+
+                // Check if this will result in a valid result
+                if(limits[0] < -x && limits[1] > x && limits[2] < -y && limits[3] > y){
+                    area = [-x, x, -y, y] as Area;
+                    debugInfo.add("Full Screen");
+                    return;
+                }
+
+                // Try furher ...
+                // use 4 test points on the circle edge to determine the correct calculation method
+
+                //  p1(x,y) = (xCircle, yMax)
+                var x1 = Math.sqrt(r2 - yMax*yMax);
+
+                //  p2(x,y) = (xMin, yCircle)
+                var y2 = Math.sqrt(r2 - xMin*xMin);
+
+                //  p3(x,y) = (xCircle, -yMin)
+                var x3 = Math.sqrt(r2 - yMin*yMin);
+
+                //  p4(x,y) = (xMax, yCircle)
+                var y4 = Math.sqrt(r2 - xMax*xMax);
+
+                // check valid ratio for Full Tunnel (horizontal) 
+                area = [-x1, x1, yMin, yMax] as Area;
+                if(-x1 >= xMin && x1 <=xMax){
+                    h = area[3]-area[2];
+                    w = area[1]-area[0];
+                    if(h==0 || aspectRatio < w/h){
+                        // apply this method
+                        if(keepAspectRatio){
+                            // use aspect ratio
+                            var w_ = h*aspectRatio;
+                            var dx = (w-w_)/2;
+                            area[0] += dx;
+                            area[1] -= dx;
+                        }
+                        debugInfo.add("Full Tunnel (horizontal)");
+                        return; 
+                    }
+                }else{
+                    // check valid ratio for Half Tunnel (to right)
+                    area = [xMin, x1, yMin, yMax] as Area;
+                    if(x1 <= xMax){
+                        w = area[1]-area[0];
+                        h = area[3]-area[2];
+                        if(h==0 || aspectRatio < w/h){
+                            // apply this method
+                            if(keepAspectRatio){
+                                var w_ = h * aspectRatio;
+                                var dx = (w - w_)/2;
+                                area[0] += dx;
+                                area[1] -= dx;
+                            }
+                            debugInfo.add("Half Tunnel (to left/right)");
+                            return;
+                        }
+                    }
+                }
+
+                // check valid ratio for Full Tunnel (vertical) 
+                area = [xMin, xMax, -y4, y4] as Area;
+                if(-y4 >= yMin && y4 <= yMax){
+                    h = area[3]-area[2];
+                    w = area[1]-area[0];
+                    if(h != 0 && aspectRatio > w/h){
+                        // apply this method
+                        if(keepAspectRatio){
+                            // use aspect ratio
+                            var h_ = w / aspectRatio;
+                            var dy = (h-h_)/2;
+                            area[2] += dy;
+                            area[3] -= dy;
+                        }
+                        debugInfo.add("Full Tunnel (vertical)");
+                        return; 
+                    }
+                }else{
+                    // check valid ratio for Half Tunnel (to bottom)
+                    area = [xMin, xMax, yMin, y4] as Area;
+                    h = area[3]-area[2];
+                    if(h > 0 && y4 <= yMax){
+                        w = area[1]-area[0];
+                        var ratio = w/h;
+                        if(aspectRatio > ratio){
+                            // apply this method
+                            if(keepAspectRatio){
+                                var h_ = w / aspectRatio;
+                                var dy = (h - h_)/2;
+                                area[2] += dy;
+                                area[3] -= dy;
+                            }
+                            debugInfo.add("Half Tunnel (top/bottom)");
+                            return;
+                        }
+                    }
+                }
+
+                // valid ratio for Half Screen (to right)
+                x = x3 > xMin ? x3 : xMin;
+                area = [xMin, x, yMin, -yMin] as Area;
+                h = area[3]-area[2];
+                if(h>0 && x <= xMax && -yMin <= yMax){
+                    w = area[1]-area[0];
+                    var ratio = w/h;
+                    if(aspectRatio > ratio){
+                        // apply this method
+
+                        //		yMax: the distance from the center to the limit corner touching the circle
+                        //		x: the distance from the center to both sides of the rectangle
+                        //
+                        //              r   ↑      ┌───────────┐
+                        //	     (radius)   ·    ┌─┘ |         └─┐
+                        //	                ·  ┌─┘   • · · · · · ○─┐ ↑ +y
+                        //	                ·  │     ·           · │ |
+                        //	                ─  │     ·   +       · │ ─
+                        //	                   │     ·           · │ |
+                        //	                   └─┐   • · · · · · ○─┘ ↓ -y
+                        //	                     └─┐ |         ┌─┘
+                        //	                       └───────────┘
+                        //	                         ←--→|←------→
+                        //                          xMin         x
+                        //                         (limit)
+                        //	formula1:
+                        //      r² = x² + y²
+                        //	formula2:
+                        //      ratio = width / height
+                        //		ratio = (x-xMin) / (2*y)
+                        //  combine:
+                        //      r² = y² + x² 
+                        //          => y² = r² - x²
+                        //      ratio = (x-xMin) / (2*y)
+                        //          => (2*y) * ratio = (x - xMin)
+                        //          => y = (x - xMin) / (2 * ratio)
+                        //  commbine
+                        //      ((x - xMin) / (2 * ratio))² = r² - x²
+                        //  use abc formula to solve x
+                        //      => (x - xMin)²/(2 * ratio)² - r² + x² = 0
+                        //      => (x² - 2*xMin*x + xMin²)/(4*ratio²) - r² + x² = 0
+                        //      => (1 + 1/(4*ratio²)) * x² + (-2*xMin/(4*ratio²)) * x + (xMin²/(4*ratio²) - r²) = 0
+                        // N = 4*ratio²
+                        //  a = 1 + 1/N
+                        //  b = -2*xMin/N
+                        //  c = xMin²/N - r²
+                        debugInfo.add("Half Screen (to left/right)");
+
+                        var N = 4*aspectRatio*aspectRatio;
+                        var a = 1+1/N;
+                        var b = -2*xMin/N;
+                        var c = xMin*xMin/N - r*r;
+                       
+                        var results = MyMath.getAbcFormulaResults(a, b, c);
+                        x = results[1];
+                        y = (x - xMin) / (aspectRatio * 2);
+                        area = [xMin, x, -y, y] as Area;
+                        return;
+                    }
+                }
+
+                // valid ratio for Half Screen (to bottom)
+                y = y2 > yMin ? y2 : yMin;
+                area = [xMin, -xMin, yMin, y] as Area;
+                if(y <= yMax && -xMin <= xMax){
+                    h = area[3]-area[2];
+                    w = area[1]-area[0];
+                    if(h==0 || aspectRatio < w/h){
+                        // apply this method
+                        debugInfo.add("Half Screen (to top/bottom)");
+
+                        var N = 4/(aspectRatio*aspectRatio);
+                        debugInfo.add(Lang.format("aspectRatio=$1$, N=$2$, yMin=$3$", [aspectRatio, N, yMin]));
+
+                        var a = 1+1/N;
+                        var b = -2*yMin/N;
+                        var c = yMin*yMin/N - r*r;
+                        debugInfo.add(Lang.format("a=$1$, b=$2$, c=$3$", [a, b, c]));
+
+                        var results = MyMath.getAbcFormulaResults(a, b, c);
+                        y = results[1];
+                        x = (y - yMin) / (2f/aspectRatio);
+                        debugInfo.add(Lang.format("x,y = $1$,$2$", [x, y]));
+                        area = [-x, x, yMin, y] as Area;
+                        return;
+                    }
+                }
+
+                // valid ratio for Single Egde (to bottom-right)
+                if(-x1 > xMin  || -y2 > yMin){
+                    //                          ╭─────────╮
+                    //	                     ╭──╯         ╰──╮  
+                    //	                   ╭─╯               ╰─╮
+                    //	                   │                   │
+                    //	                   │       ┏━━━━━━┱╌╌╌╌┤
+                    //	                   │       ┃      ┃    │
+                    //	                   ╰─╮     ┃      ┃  ╭─╯
+                    //	                     ╰──╮  ┡━━━━━━╃──╯
+                    //	                        ╰──┴──────╯
+                    //	formula1:
+                    //      r² = x² + y²
+                    //      => x² = r² - y²
+                    //  formula2:
+                    //      ratio = w / h = (x-xMin) / (y-yMin)
+                    //      => (x-xMin) = (y-yMin) * ratio
+                    //      => x = y * ratio + (xMin - yMin * ratio) = y * ratio + C where C = (xMin - yMin * ratio)
+                    //  combine:
+                    //      (y * ratio + C)² = r² - y²
+                    //      y² * ratio² +       y * (2 * ratio * C) + C² = r² - y²
+                    //      y² * (1 + ratio²) + y * (2 * ratio * C) + (C² - r²) = 0
+
+                    //  abc formula:
+                    //      a = 1 + ratio²
+                    //      b = 2 * ratio * C
+                    //      c = C² - r²
+                    //  where C = (xMin - yMin * ratio)
+                    var C = xMin - yMin * aspectRatio;
+                    var a = 1 + aspectRatio * aspectRatio;
+                    var b = 2 * aspectRatio * C;
+                    var c = C*C - r*r;
+
+                    var results = MyMath.getAbcFormulaResults(a, b, c);
+                    y = results[1];
+                    x = y * aspectRatio + C;
+                    area = [xMin, x, yMin, y] as Area;
+                    debugInfo.add("Single Egde (to bottom-right)");
+
+                }else{ // if(valid3 || valid4){
+                    var C = yMin - xMin / aspectRatio;
+                    var a = 1 + 1/(aspectRatio * aspectRatio);
+                    var b = 2 * C / aspectRatio;
+                    var c = C*C - r*r;
+
+                    var results = MyMath.getAbcFormulaResults(a, b, c);
+                    x = results[1];
+                    y = x / aspectRatio + C;
+                    area = [xMin, x, yMin, y] as Area;
+                    debugInfo.add("Single Egde (to bottom-right)");
+                }
 
             }catch(ex instanceof MyTools.MyException){
                 ex.printStackTrace();
@@ -395,7 +517,12 @@ module MyLayoutHelper{
                 }
                 System.println(ex.getErrorMessage());
                 System.println(Lang.format("Limits: x=[$1$..$2$], y=[$3$..$4$]", limits));
-                System.println(Lang.format("Result: x=[$1$..$2$], y=[$3$..$4$]", obj));
+                System.println(Lang.format("Result: x=[$1$..$2$], y=[$3$..$4$]", area));
+            }finally{
+                debugInfo.add("aspectRatio: "+aspectRatio.toString());
+                // revert the flip
+                flipArea(area, xFlipped, yFlipped);
+                applyArea(area, shape);
             }
         }
 
@@ -480,7 +607,7 @@ module MyLayoutHelper{
             }
             return exceededDirections;
         }
-
+/*
 		hidden static function reachCircleEdge_4Points(r as Number, aspectRatio as Decimal) as Area{
             // approach circle edge with all four corners
             var angle = Math.atan(1f/aspectRatio);
@@ -522,22 +649,27 @@ module MyLayoutHelper{
             //      ratio = width / height
 			//		ratio = (x-xMin) / (2*y)
             //  combine:
-            //      r² = y² + xMin² 
-            //          => y² = r² - xMin²
+            //      r² = y² + x² 
+            //          => y² = r² - x²
             //      ratio = (x-xMin) / (2*y)
             //          => (2*y) * ratio = (x - xMin)
             //          => y = (x - xMin) / (2 * ratio)
-            //      ((x - xMin) / (2 * ratio))² = r² - xMin²
+            //  commbine
+            //      ((x - xMin) / (2 * ratio))² = r² - x²
             //  use abc formula to solve x
-            //      => (x * 1/(2*ratio) - xMin/(2*ratio))² = r² - xMin²
-            //      => x² * (1/(2*ratio))² - 2 * x * 1/(2*ratio) * xMin/(2*ratio) + (xMin/(2*ratio))² = r² - xMin²
-            //  a = (1/(2*ratio))² = 1 / (2*ratio)²
-            //  b = -2 * 1/(2*ratio) * xMin/(2*ratio) = -2 * xMin / (2*ratio)²
-            //  c = (xMin/(2*ratio))² + xMin² - r²  = xMin² / (2*ratio)² + xMin² - r² = xMin² * (1/(2*ratio)² + 1) -r²
+            //      => (x - xMin)²/(2 * ratio)² - r² + x² = 0
+            //      => (x² - 2*xMin*x + xMin²)/(4*ratio²) - r² + x² = 0
+            //      => (1 + 1/(4*ratio²)) * x² + (-2*xMin/(4*ratio²)) * x + (xMin²/(4*ratio²) - r²) = 0
+            // N = 4*ratio²
+            //  a = 1 + 1/N
+            //  b = -2*xMin/N
+            //  c = xMin²/N - r²
 
-			var a = 1+Math.pow(1f/(ratio*2), 2);
-			var b = -1f/(ratio*ratio*2) * xMin;
-			var c = Math.pow(1f/(ratio*2) * xMin, 2) - r*r;
+            var N = 4*ratio*ratio;
+            var a = 1+1/N;
+            var b = -2*xMin/N;
+            var c = xMin*xMin/N - r*r;
+            
 			var results = MyMath.getAbcFormulaResults(a, b, c);
 			var x = results[1];
 			var y = (x - xMin) / (ratio * 2);
@@ -743,5 +875,6 @@ module MyLayoutHelper{
                 return [x, x+w, y, y+h] as Area;
             }
         }
+*/        
     }
 }
