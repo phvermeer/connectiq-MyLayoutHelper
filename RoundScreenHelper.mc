@@ -82,7 +82,7 @@ module MyLayoutHelper{
 
         function align(shape as IDrawable, alignment as Alignment|Number) as Void{
             // move object to outer limits in given align direction
-            var obj = getArea(shape);
+            var area = getArea(shape);
 
             // remove opposite alignment values
             if(alignment & (ALIGN_TOP|ALIGN_BOTTOM) == (ALIGN_TOP|ALIGN_BOTTOM)){
@@ -117,7 +117,7 @@ module MyLayoutHelper{
                                 ? DIRECTION_RIGHT
                                 : null;
                 if(direction != null){
-                    var obj_ = transposeArea(obj, direction, DIRECTION_TOP);
+                    var area_ = transposeArea(area, direction, DIRECTION_TOP);
                     var limits_ = transposeArea(limits, direction, DIRECTION_TOP);
 
                     // ********* Do the top alignment ***********
@@ -126,68 +126,72 @@ module MyLayoutHelper{
                     var xMinL = limits_[0];
                     var xMaxL = limits_[1];
                     var yMinL = limits_[2];
-                    var xMin = obj_[0];
-                    var xMax = obj_[1];
-                    var yMin = obj_[2];
+                    var xMin = area_[0];
+                    var xMax = area_[1];
+                    var yMin = area_[2];
 
-                    // check if the width fits inside the boundaries
-                    if((xMax - xMin) > (xMaxL - xMinL)){
-                        throw new MyTools.MyException("shape cannot be aligned, shape outside limits");
-                    }
-                    // check space on top boundary within the circle
-                    //   x² + y² = r²
-                    //   x = ±√(r² - y²)
-                    //   xMax = +√(r² - yMin²), xMin = -√(r² - yMin²) 
-                    var r2 = r*r;
-                    var xCircle = Math.sqrt(r2 - yMinL*yMinL);
-                    var xMaxCalc = (xCircle < xMaxL) ? xCircle : xMaxL;
-                    var xMinCalc = (-xCircle > xMinL) ? -xCircle : xMinL;
-
-                    // check if the object fits against the top boundary
                     var w = xMax - xMin;
                     var dx = 0;
                     var dy = 0;
-                    if((xMaxCalc - xMinCalc) >= w){
-                        xMinCalc = 0.5 * (xMinCalc + xMaxCalc - w);
-                        var yMinCalc = yMinL;
-                        dx = xMinCalc - xMin;
-                        dy = yMinCalc - yMin;
+
+                    // check if the width fits inside the boundaries
+                    if((xMax - xMin) > (xMaxL - xMinL)){
+                        //throw new MyTools.MyException("shape cannot be aligned, shape outside limits");
+                        dy = yMinL - yMin;
+                        dx = ((xMaxL+xMinL)-(xMax+xMin))/2;
                     }else{
-                        // move away from the border until the object fits
-                        // needs space on circle both left and right or only left or right
-                        var needsRight = false;
-                        var needsLeft = false;
-                        if(xMinL > -w/2){
-                            needsRight = true;
-                        }else if(xMaxL < w/2){
-                            needsLeft = true;
+                        // check space on top boundary within the circle
+                        //   x² + y² = r²
+                        //   x = ±√(r² - y²)
+                        //   xMax = +√(r² - yMin²), xMin = -√(r² - yMin²) 
+                        var r2 = r*r;
+                        var xCircle = Math.sqrt(r2 - yMinL*yMinL);
+                        var xMaxCalc = (xCircle < xMaxL) ? xCircle : xMaxL;
+                        var xMinCalc = (-xCircle > xMinL) ? -xCircle : xMinL;
+
+                        // check if the object fits against the top boundary
+                        if((xMaxCalc - xMinCalc) >= w){
+                            xMinCalc = 0.5 * (xMinCalc + xMaxCalc - w);
+                            var yMinCalc = yMinL;
+                            dx = xMinCalc - xMin;
+                            dy = yMinCalc - yMin;
                         }else{
-                            needsLeft = true;
-                            needsRight = true;
+                            // move away from the border until the object fits
+                            // needs space on circle both left and right or only left or right
+                            var needsRight = false;
+                            var needsLeft = false;
+                            if(xMinL > -w/2){
+                                needsRight = true;
+                            }else if(xMaxL < w/2){
+                                needsLeft = true;
+                            }else{
+                                needsLeft = true;
+                                needsRight = true;
+                            }
+                            var xNeeded = (needsLeft && needsRight) // x needed for each circle side
+                                ? 0.5f * w
+                                : needsLeft
+                                    ? w - xMaxL
+                                    : w + xMinL;
+                            // y² + x² = r²
+                            // y = ±√(r² - x²)
+                            var yMinCalc = - Math.sqrt(r2 - xNeeded*xNeeded);
+                            xMinCalc = (xMinL > -xNeeded) ? xMinL : -xNeeded;
+                            dx = xMinCalc - xMin;
+                            dy = yMinCalc - yMin;
                         }
-                        var xNeeded = (needsLeft && needsRight) // x needed for each circle side
-                            ? 0.5f * w
-                            : needsLeft
-                                ? w - xMaxL
-                                : w + xMinL;
-                        // y² + x² = r²
-                        // y = ±√(r² - x²)
-                        var yMinCalc = - Math.sqrt(r2 - xNeeded*xNeeded);
-                        xMinCalc = (xMinL > -xNeeded) ? xMinL : -xNeeded;
-                        dx = xMinCalc - xMin;
-                        dy = yMinCalc - yMin;
                     }
-                    obj_[0] += dx;
-                    obj_[1] += dx;
-                    obj_[2] += dy;
-                    obj_[3] += dy;
+                    area_[0] += dx;
+                    area_[1] += dx;
+                    area_[2] += dy;
+                    area_[3] += dy;
 
                     // transpose back to original orientation
-                    obj = transposeArea(obj_, DIRECTION_TOP, direction);
+                    area = transposeArea(area_, DIRECTION_TOP, direction);
                 }
             }
 
-            applyArea(obj, shape);
+            applyArea(area, shape);
         }
 
         hidden static function flipArea(area as Area, horizontalFlip as Boolean, verticalFlip as Boolean) as Void{
