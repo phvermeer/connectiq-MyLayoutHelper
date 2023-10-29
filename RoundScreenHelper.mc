@@ -6,6 +6,8 @@ import Toybox.Math;
 module MyLayoutHelper{
 
     typedef IDrawable as interface{
+        function setLocation(x as Numeric, y as Numeric) as Void;
+        function setSize(w as Numeric, h as Numeric) as Void;
         var locX as Numeric;
         var locY as Numeric;
         var width as Numeric;
@@ -545,10 +547,8 @@ module MyLayoutHelper{
             var xMax = Math.floor(area[1]).toNumber();
             var yMin = Math.ceil(area[2]).toNumber();
             var yMax = Math.floor(area[3]).toNumber();
-            drawable.locX = xMin + r;
-            drawable.width = xMax - xMin;
-            drawable.locY = yMin + r;
-            drawable.height = yMax - yMin;
+            drawable.setLocation(xMin + r, yMin + r);
+            drawable.setSize(xMax - xMin, yMax - yMin);
         }
 
         hidden static function rotateArea(area as Area, nrOfQuadrants as Number) as Area{
