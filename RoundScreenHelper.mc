@@ -236,8 +236,8 @@ module MyLayoutHelper{
             var w = shape.width;
             var h = shape.height;
             var aspectRatio = (w==0 || h==0)
-                ? 1
-                : w/h;
+                ? 1f
+                : 1f*w/h;
             debugInfo.add(Lang.format("ratio = w/h = $1$/$2$ = $3$", [w,h,aspectRatio]));
 
             // update the area with the final result
