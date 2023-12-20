@@ -21,6 +21,30 @@ module MyLayoutHelper{
         ALIGN_LEFT = 8,
     }
 
+    typedef ILayoutHelper as interface{
+        function align(shape as IDrawable, alignment as Alignment|Number) as Void;
+        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void;
+    };
+    function getLayoutHelper(options as { :screenShape as ScreenShape, :xMin as Numeric, :xMax as Numeric, :yMin as Numeric, :yMax as Numeric, :margin as Number }) as ILayoutHelper{
+        var screenShape = options.get(:screenShape);
+        if(screenShape == null){
+            screenShape = System.getDeviceSettings().screenShape;
+        }
+        switch(screenShape){
+            case System.SCREEN_SHAPE_ROUND:
+                return new RoundScreenHelper(options);
+//            case System.SCREEN_SHAPE_SEMI_ROUND:
+//            case System.SCREEN_SHAPE_RECTANGLE:
+//            case System.SCREEN_SHAPE_SEMI_OCTAGON:
+            default:
+                throw new MyTools.MyException("This screen shape is not (yet) supported");
+        }
+    }
+
+    class SquareScreenHelper{
+
+    }
+
     class RoundScreenHelper{
 
         // internal definitions
@@ -48,6 +72,7 @@ module MyLayoutHelper{
         // protected vars
         hidden var limits as Area;
         hidden var r as Number;
+        var margin as Number;
 
         var debugInfo as Array<String> = [] as Array<String>;
 
@@ -56,6 +81,7 @@ module MyLayoutHelper{
             :xMax as Numeric,
             :yMin as Numeric,
             :yMax as Numeric,
+            :margin as Number,
         }){
             var ds = System.getDeviceSettings();
             if(ds.screenShape != System.SCREEN_SHAPE_ROUND){
@@ -66,6 +92,7 @@ module MyLayoutHelper{
             var xMax = (options.hasKey(:xMax) ? options.get(:xMax) as Numeric : ds.screenWidth).toFloat();
             var yMin = (options.hasKey(:yMin) ? options.get(:yMin) as Numeric : 0).toFloat();
             var yMax = (options.hasKey(:yMax) ? options.get(:yMax) as Numeric : ds.screenHeight).toFloat();
+            margin = options.hasKey(:margin) ? options.get(:margin) as Number : 0;
             r = ds.screenWidth / 2;
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
@@ -78,11 +105,21 @@ module MyLayoutHelper{
                 limits[3] + r,
             ] as Array<Numeric>;
         }
+
         function setLimits(xMin as Numeric, xMax as Numeric, yMin as Numeric, yMax as Numeric) as Void{
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
 
         function align(shape as IDrawable, alignment as Alignment|Number) as Void{
+            // apply margin on limits
+            var r = self.r-margin;
+            var limits = [
+                self.limits[0] + margin,
+                self.limits[1] - margin,
+                self.limits[2] + margin,
+                self.limits[3] - margin,
+            ] as Area;
+
             // move object to outer limits in given align direction
             var area = getArea(shape);
 
@@ -209,7 +246,7 @@ module MyLayoutHelper{
             }
         }
 
-        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean, margin as Number) as Void{
+        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void{
             debugInfo = [] as Array<String>;
 
             // resize object to fit within outer limits
