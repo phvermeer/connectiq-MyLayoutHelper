@@ -7,13 +7,13 @@ import MyLayoutHelper;
 using MyMath;
 
 (:test)
-function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
+function layoutHelper_resizeToMax(logger as Logger) as Boolean{
 	var counter = 0;
 	var deviceSettings = System.getDeviceSettings();
 	System.println(Lang.format("screenShape: $1$", [deviceSettings.screenShape]));
 	if(deviceSettings.screenShape == System.SCREEN_SHAPE_ROUND){
 		// For now only round screens are supported
-		var helper = new MyLayoutHelper.RoundScreenHelper({});
+		var helper = MyLayoutHelper.getLayoutHelper({});
 
 		var diameter = deviceSettings.screenWidth;
 		var radius = diameter/2;
@@ -38,7 +38,7 @@ function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
 							helper.setLimits(x, x+w, y, y+h);
 
 							var shape = new WatchUi.Drawable({ :width => 10*ratio, :height => 10 });
-							helper.resizeToMax(shape, true, 0);
+							helper.resizeToMax(shape, true);
 
 							// limits:
 							var limits = helper.getLimits();
@@ -96,16 +96,6 @@ function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
 
 							// check if the maximum space is used
 							var quality = 0f;
-/*							
-							if(MyMath.abs(xMax - xMax_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(xMin - xMin_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(yMax - yMax_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(yMin - yMin_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(radius_top_right    - radius) <= 2){ quality += 1.5; }
-							if(MyMath.abs(radius_top_left     - radius) <= 2){ quality += 1.5; }
-							if(MyMath.abs(radius_bottom_left  - radius) <= 2){ quality += 1.5; }
-							if(MyMath.abs(radius_bottom_right - radius) <= 2){ quality += 1.5; }
-*/
 							var corners = ["top-right", "top-left", "bottom-left", "bottom-right"] as Array<String>;
 							for(var i=0; i<corners.size(); i++){
 								var corner = corners[i];
@@ -186,11 +176,11 @@ function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
 }
 
 (:test)
-function layoutHelper_Alignment(logger as Logger) as Boolean{
+function layoutHelper_align(logger as Logger) as Boolean{
 	var deviceSettings = System.getDeviceSettings();
 	var diameter = deviceSettings.screenWidth;
 	var r = diameter / 2;
-	var helper = new MyLayoutHelper.RoundScreenHelper({});
+	var helper = MyLayoutHelper.getLayoutHelper({});
 
 	// 4 different boundaries
 	var boundariesList = [
