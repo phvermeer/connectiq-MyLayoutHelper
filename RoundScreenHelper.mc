@@ -3,7 +3,7 @@ import Toybox.Graphics;
 import Toybox.System;
 import Toybox.Math;
 
-module MyLayoutHelper{
+module MyLayout{
     class RoundScreenHelper{
 
         // internal definitions

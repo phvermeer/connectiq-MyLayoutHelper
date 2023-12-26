@@ -1,7 +1,7 @@
 import Toybox.Lang;
 import Toybox.System;
 
-module MyLayoutHelper{
+module MyLayout{
 
     typedef IDrawable as interface{
         function setLocation(x as Numeric, y as Numeric) as Void;

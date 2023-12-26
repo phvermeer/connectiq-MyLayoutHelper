@@ -2,7 +2,7 @@ import Toybox.Lang;
 import Toybox.System;
 import MyMath;
 
-module MyLayoutHelper{
+module MyLayout{
     class SquareScreenHelper{
         var xMin as Numeric;
         var xMax as Numeric;
