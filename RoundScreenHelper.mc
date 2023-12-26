@@ -3,24 +3,7 @@ import Toybox.Graphics;
 import Toybox.System;
 import Toybox.Math;
 
-module MyLayoutHelper{
-
-    typedef IDrawable as interface{
-        function setLocation(x as Numeric, y as Numeric) as Void;
-        function setSize(w as Numeric, h as Numeric) as Void;
-        var locX as Numeric;
-        var locY as Numeric;
-        var width as Numeric;
-        var height as Numeric;
-    };
-
-    enum Alignment{
-        ALIGN_TOP = 1,
-        ALIGN_RIGHT = 2,
-        ALIGN_BOTTOM = 4,
-        ALIGN_LEFT = 8,
-    }
-
+module MyLayout{
     class RoundScreenHelper{
 
         // internal definitions
@@ -48,6 +31,7 @@ module MyLayoutHelper{
         // protected vars
         hidden var limits as Area;
         hidden var r as Number;
+        var margin as Number;
 
         var debugInfo as Array<String> = [] as Array<String>;
 
@@ -56,6 +40,7 @@ module MyLayoutHelper{
             :xMax as Numeric,
             :yMin as Numeric,
             :yMax as Numeric,
+            :margin as Number,
         }){
             var ds = System.getDeviceSettings();
             if(ds.screenShape != System.SCREEN_SHAPE_ROUND){
@@ -66,6 +51,7 @@ module MyLayoutHelper{
             var xMax = (options.hasKey(:xMax) ? options.get(:xMax) as Numeric : ds.screenWidth).toFloat();
             var yMin = (options.hasKey(:yMin) ? options.get(:yMin) as Numeric : 0).toFloat();
             var yMax = (options.hasKey(:yMax) ? options.get(:yMax) as Numeric : ds.screenHeight).toFloat();
+            margin = options.hasKey(:margin) ? options.get(:margin) as Number : 0;
             r = ds.screenWidth / 2;
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
         }
@@ -78,11 +64,22 @@ module MyLayoutHelper{
                 limits[3] + r,
             ] as Array<Numeric>;
         }
-        function setLimits(xMin as Numeric, xMax as Numeric, yMin as Numeric, yMax as Numeric) as Void{
+
+        function setLimits(xMin as Numeric, xMax as Numeric, yMin as Numeric, yMax as Numeric, margin as Number) as Void{
             limits = [xMin-r, xMax-r, yMin-r, yMax-r] as Area;
+            self.margin = margin;
         }
 
         function align(shape as IDrawable, alignment as Alignment|Number) as Void{
+            // apply margin on limits
+            var r = self.r-margin;
+            var limits = [
+                self.limits[0] + margin,
+                self.limits[1] - margin,
+                self.limits[2] + margin,
+                self.limits[3] - margin,
+            ] as Area;
+
             // move object to outer limits in given align direction
             var area = getArea(shape);
 
@@ -209,7 +206,7 @@ module MyLayoutHelper{
             }
         }
 
-        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean, margin as Number) as Void{
+        function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void{
             debugInfo = [] as Array<String>;
 
             // resize object to fit within outer limits
@@ -236,8 +233,8 @@ module MyLayoutHelper{
             var w = shape.width;
             var h = shape.height;
             var aspectRatio = (w==0 || h==0)
-                ? 1
-                : w/h;
+                ? 1f
+                : 1f*w/h;
             debugInfo.add(Lang.format("ratio = w/h = $1$/$2$ = $3$", [w,h,aspectRatio]));
 
             // update the area with the final result

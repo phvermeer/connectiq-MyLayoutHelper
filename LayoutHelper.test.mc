@@ -3,17 +3,17 @@ using Toybox.System;
 import Toybox.WatchUi;
 using Toybox.Math;
 import Toybox.Lang;
-import MyLayoutHelper;
+import MyLayout;
 using MyMath;
 
 (:test)
-function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
+function layoutHelper_resizeToMax(logger as Logger) as Boolean{
 	var counter = 0;
 	var deviceSettings = System.getDeviceSettings();
 	System.println(Lang.format("screenShape: $1$", [deviceSettings.screenShape]));
 	if(deviceSettings.screenShape == System.SCREEN_SHAPE_ROUND){
 		// For now only round screens are supported
-		var helper = new MyLayoutHelper.RoundScreenHelper({});
+		var helper = new MyLayout.RoundScreenHelper({});
 
 		var diameter = deviceSettings.screenWidth;
 		var radius = diameter/2;
@@ -35,10 +35,10 @@ function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
 							// check valid
 							var errorMessages = [] as Array<String>;
 							var infoMessages = ["#"+counter.toString()] as Array<String>;
-							helper.setLimits(x, x+w, y, y+h);
+							helper.setLimits(x, x+w, y, y+h, 0);
 
 							var shape = new WatchUi.Drawable({ :width => 10*ratio, :height => 10 });
-							helper.resizeToMax(shape, true, 0);
+							helper.resizeToMax(shape, true);
 
 							// limits:
 							var limits = helper.getLimits();
@@ -96,16 +96,6 @@ function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
 
 							// check if the maximum space is used
 							var quality = 0f;
-/*							
-							if(MyMath.abs(xMax - xMax_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(xMin - xMin_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(yMax - yMax_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(yMin - yMin_) <= 1){ quality += 1.25; }
-							if(MyMath.abs(radius_top_right    - radius) <= 2){ quality += 1.5; }
-							if(MyMath.abs(radius_top_left     - radius) <= 2){ quality += 1.5; }
-							if(MyMath.abs(radius_bottom_left  - radius) <= 2){ quality += 1.5; }
-							if(MyMath.abs(radius_bottom_right - radius) <= 2){ quality += 1.5; }
-*/
 							var corners = ["top-right", "top-left", "bottom-left", "bottom-right"] as Array<String>;
 							for(var i=0; i<corners.size(); i++){
 								var corner = corners[i];
@@ -186,11 +176,11 @@ function layoutHelper_fitAreaWithRatio(logger as Logger) as Boolean{
 }
 
 (:test)
-function layoutHelper_Alignment(logger as Logger) as Boolean{
+function layoutHelper_align(logger as Logger) as Boolean{
 	var deviceSettings = System.getDeviceSettings();
 	var diameter = deviceSettings.screenWidth;
 	var r = diameter / 2;
-	var helper = new MyLayoutHelper.RoundScreenHelper({});
+	var helper = MyLayout.getLayoutHelper({});
 
 	// 4 different boundaries
 	var boundariesList = [
@@ -206,14 +196,14 @@ function layoutHelper_Alignment(logger as Logger) as Boolean{
 	] as Array< Array<Numeric> >;
 	// 8 alignments
 	var alignmentList = [
-		MyLayoutHelper.ALIGN_TOP,
-//		MyLayoutHelper.ALIGN_TOP|MyLayoutHelper.ALIGN_RIGHT,
-		MyLayoutHelper.ALIGN_RIGHT,
-//		MyLayoutHelper.ALIGN_BOTTOM|MyLayoutHelper.ALIGN_RIGHT,
-		MyLayoutHelper.ALIGN_BOTTOM,
-//		MyLayoutHelper.ALIGN_BOTTOM|MyLayoutHelper.ALIGN_LEFT,
-		MyLayoutHelper.ALIGN_LEFT,
-//		MyLayoutHelper.ALIGN_TOP|MyLayoutHelper.ALIGN_LEFT,
+		MyLayout.ALIGN_TOP,
+//		MyLayout.ALIGN_TOP|MyLayout.ALIGN_RIGHT,
+		MyLayout.ALIGN_RIGHT,
+//		MyLayout.ALIGN_BOTTOM|MyLayout.ALIGN_RIGHT,
+		MyLayout.ALIGN_BOTTOM,
+//		MyLayout.ALIGN_BOTTOM|MyLayout.ALIGN_LEFT,
+		MyLayout.ALIGN_LEFT,
+//		MyLayout.ALIGN_TOP|MyLayout.ALIGN_LEFT,
 	] as Array<Alignment|Number>;
 
 	for(var b=0; b<boundariesList.size(); b++){
@@ -233,7 +223,7 @@ function layoutHelper_Alignment(logger as Logger) as Boolean{
 				infoMessages.add(Lang.format("Shape: x,y = $1$,$2$ w,h = $3$,$4$", [shape.locX, shape.locY, shape.width, shape.height]));
 				infoMessages.add(Lang.format("Alignment: $1$", [alignment]));
 
-				helper.setLimits(boundaries[0],boundaries[1],boundaries[2],boundaries[3]);
+				helper.setLimits(boundaries[0],boundaries[1],boundaries[2],boundaries[3], 0);
 				try{
 					helper.align(shape, alignment);
 				}catch(ex instanceof Lang.Exception){
@@ -242,25 +232,25 @@ function layoutHelper_Alignment(logger as Logger) as Boolean{
 
 				// get the relevant corner(s) for the alignment
 				var corners = [] as Array;
-				if(alignment == MyLayoutHelper.ALIGN_TOP){
+				if(alignment == MyLayout.ALIGN_TOP){
 					corners.add([shape.locX, shape.locY]);
 					corners.add([shape.locX + shape.width, shape.locY]);
-				}else if(alignment == MyLayoutHelper.ALIGN_RIGHT){
+				}else if(alignment == MyLayout.ALIGN_RIGHT){
 					corners.add([shape.locX + shape.width, shape.locY]);
 					corners.add([shape.locX + shape.width, shape.locY + shape.height]);
-				}else if(alignment == MyLayoutHelper.ALIGN_BOTTOM){
+				}else if(alignment == MyLayout.ALIGN_BOTTOM){
 					corners.add([shape.locX, shape.locY + shape.height]);
 					corners.add([shape.locX + shape.width, shape.locY + shape.height]);
-				}else if(alignment == MyLayoutHelper.ALIGN_LEFT){
+				}else if(alignment == MyLayout.ALIGN_LEFT){
 					corners.add([shape.locX, shape.locY]);
 					corners.add([shape.locX, shape.locY + shape.height]);
-				}else if(alignment == (MyLayoutHelper.ALIGN_TOP|MyLayoutHelper.ALIGN_LEFT)){
+				}else if(alignment == (MyLayout.ALIGN_TOP|MyLayout.ALIGN_LEFT)){
 					corners.add([shape.locX, shape.locY]);
-				}else if(alignment == (MyLayoutHelper.ALIGN_TOP|MyLayoutHelper.ALIGN_RIGHT)){
+				}else if(alignment == (MyLayout.ALIGN_TOP|MyLayout.ALIGN_RIGHT)){
 					corners.add([shape.locX + shape.width, shape.locY]);
-				}else if(alignment == (MyLayoutHelper.ALIGN_BOTTOM|MyLayoutHelper.ALIGN_RIGHT)){
+				}else if(alignment == (MyLayout.ALIGN_BOTTOM|MyLayout.ALIGN_RIGHT)){
 					corners.add([shape.locX + shape.width, shape.locY + shape.height]);
-				}else if(alignment == (MyLayoutHelper.ALIGN_BOTTOM|MyLayoutHelper.ALIGN_LEFT)){
+				}else if(alignment == (MyLayout.ALIGN_BOTTOM|MyLayout.ALIGN_LEFT)){
 					corners.add([shape.locX, shape.locY + shape.height]);
 				}
 
