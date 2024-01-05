@@ -2,4 +2,6 @@
 # "Configure Monkey Barrels" command.
 
 MyMath = [..\MyMath\monkey.jungle]
-base.sourcePath = $(base.sourcePath);$(MyMath)
+MyTools = [..\MyTools\monkey.jungle]
+base.barrelPath = $(base.barrelPath);$(MyMath);$(MyTools)
+# base.sourcePath = $(base.sourcePath);$(MyMath);$(MyTools)

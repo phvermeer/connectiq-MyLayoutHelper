@@ -28,6 +28,7 @@
         -->
         <iq:barrels>
             <iq:depends name="MyMath" version="0.0.0"/>
+            <iq:depends name="MyTools" version="0.0.0"/>
         </iq:barrels>
         <!--
             Use "Monkey C: Edit Annotations" from the Visual Studio Code
