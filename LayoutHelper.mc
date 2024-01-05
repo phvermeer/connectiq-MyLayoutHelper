@@ -32,6 +32,8 @@ module MyLayout{
         function resizeToMax(shape as IDrawable, keepAspectRatio as Boolean) as Void;
     };
     function getLayoutHelper(options as { :screenShape as ScreenShape, :xMin as Numeric, :xMax as Numeric, :yMin as Numeric, :yMax as Numeric, :margin as Number }) as ILayoutHelper{
+        return new MyLayout.LayoutHelper(options) as ILayoutHelper;
+/*        
         var screenShape = options.get(:screenShape);
         if(screenShape == null){
             screenShape = System.getDeviceSettings().screenShape;
@@ -46,5 +48,6 @@ module MyLayout{
             default:
                 throw new MyTools.MyException("This screen shape is not (yet) supported");
         }
+*/
     }
 }

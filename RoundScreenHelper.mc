@@ -4,7 +4,8 @@ import Toybox.System;
 import Toybox.Math;
 
 module MyLayout{
-    class RoundScreenHelper{
+    (:round)
+    class LayoutHelper{
 
         // internal definitions
         hidden enum Quadrant{

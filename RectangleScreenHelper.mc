@@ -3,7 +3,8 @@ import Toybox.System;
 import MyMath;
 
 module MyLayout{
-    class SquareScreenHelper{
+    (:rectangle)
+    class LayoutHelper{
         var xMin as Numeric;
         var xMax as Numeric;
         var yMin as Numeric;
