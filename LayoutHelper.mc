@@ -1,7 +1,9 @@
 import Toybox.Lang;
 import Toybox.System;
 
-module MyLayout{
+module MyBarrel{
+    (:layout)
+    module Layout{
 
     typedef IDrawable as interface{
         function setLocation(x as Numeric, y as Numeric) as Void;
@@ -44,7 +46,8 @@ module MyLayout{
                 return new SquareScreenHelper(options);
 //            case System.SCREEN_SHAPE_SEMI_OCTAGON:
             default:
-                throw new MyTools.MyException("This screen shape is not (yet) supported");
+                throw new InvalidOptionsException("This screen shape is not (yet) supported");
         }
     }
+}
 }

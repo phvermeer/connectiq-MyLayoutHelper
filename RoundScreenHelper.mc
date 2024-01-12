@@ -3,7 +3,9 @@ import Toybox.Graphics;
 import Toybox.System;
 import Toybox.Math;
 
-module MyLayout{
+module MyBarrel{
+(:layout)
+module Layout{
     class RoundScreenHelper{
 
         // internal definitions
@@ -44,7 +46,7 @@ module MyLayout{
         }){
             var ds = System.getDeviceSettings();
             if(ds.screenShape != System.SCREEN_SHAPE_ROUND){
-                throw new MyTools.MyException("Screenshape is not supported");
+                throw new InvalidValueException("Screenshape is not supported");
             }
 
             var xMin = (options.hasKey(:xMin) ? options.get(:xMin) as Numeric : 0).toFloat();
@@ -92,17 +94,17 @@ module MyLayout{
             }
 
             // determine the align type (centered/horizontal/vertical/diagonal)
-            var alignType = MyMath.countBitsHigh(alignment as Number); // 0 => centered), 1 => straight, 2 => diagonal
+            var alignType = Math2.countBitsHigh(alignment as Number); // 0 => centered), 1 => straight, 2 => diagonal
 
             if(alignment < 0 || alignment > 15){
-                throw new MyTools.MyException(Lang.format("Unsupported align direction $1$", [alignment]));
+                throw new InvalidOptionsException(Lang.format("Unsupported align direction $1$", [alignment]));
             }
             if(alignType == 0){
                 // centered
-                throw new MyTools.MyException("Centered alignment is not (yet) supported");
+                throw new InvalidOptionsException("Centered alignment is not (yet) supported");
             }else if(alignType == 2){
                 // diagonal
-                throw new MyTools.MyException("Diagonal alignment is not (yet) supported");
+                throw new InvalidOptionsException("Diagonal alignment is not (yet) supported");
             }else if(alignType == 1){
                 // straight
                 // transpose to TOP alignment
@@ -135,7 +137,7 @@ module MyLayout{
 
                     // check if the width fits inside the boundaries
                     if((xMax - xMin) > (xMaxL - xMinL)){
-                        //throw new MyTools.MyException("shape cannot be aligned, shape outside limits");
+                        //throw new InvalidValueException("shape cannot be aligned, shape outside limits");
                         dy = yMinL - yMin;
                         dx = ((xMaxL+xMinL)-(xMax+xMin))/2;
                     }else{
@@ -245,7 +247,7 @@ module MyLayout{
                 // Check if whole limit area is outside the circle
                 if(xMin*xMax>=0 && yMin*yMax>=0 && xMin*xMin + yMin*yMin >= r2){
                     // impossible mission
-                    throw new MyTools.MyException("invalid limits (outside the circle)");
+                    throw new InvalidValueException("invalid limits (outside the circle)");
                 }
 
                 // Check if all limits are within the circle
@@ -425,8 +427,8 @@ module MyLayout{
                         var a = 1+1/N;
                         var b = -2*xMin/N;
                         var c = xMin*xMin/N - r*r;
-                       
-                        var results = MyMath.getAbcFormulaResults(a, b, c);
+                    
+                        var results = Math2.getAbcFormulaResults(a, b, c);
                         x = results[1];
                         y = (x - xMin) / (aspectRatio * 2);
                         area = [xMin, x, -y, y] as Area;
@@ -452,7 +454,7 @@ module MyLayout{
                         var c = yMin*yMin/N - r*r;
                         debugInfo.add(Lang.format("a=$1$, b=$2$, c=$3$", [a, b, c]));
 
-                        var results = MyMath.getAbcFormulaResults(a, b, c);
+                        var results = Math2.getAbcFormulaResults(a, b, c);
                         y = results[1];
                         x = (y - yMin) / (2f/aspectRatio);
                         debugInfo.add(Lang.format("x,y = $1$,$2$", [x, y]));
@@ -494,7 +496,7 @@ module MyLayout{
                     var b = 2 * aspectRatio * C;
                     var c = C*C - r*r;
 
-                    var results = MyMath.getAbcFormulaResults(a, b, c);
+                    var results = Math2.getAbcFormulaResults(a, b, c);
                     y = results[1];
                     x = y * aspectRatio + C;
                     area = [xMin, x, yMin, y] as Area;
@@ -506,14 +508,14 @@ module MyLayout{
                     var b = 2 * C / aspectRatio;
                     var c = C*C - r*r;
 
-                    var results = MyMath.getAbcFormulaResults(a, b, c);
+                    var results = Math2.getAbcFormulaResults(a, b, c);
                     x = results[1];
                     y = x / aspectRatio + C;
                     area = [xMin, x, yMin, y] as Area;
                     debugInfo.add("Single Egde (to bottom-right)");
                 }
 
-            }catch(ex instanceof MyTools.MyException){
+            }catch(ex instanceof Exception){
                 ex.printStackTrace();
                 for(var i=0; i<debugInfo.size(); i++){
                     System.println(debugInfo[i]);
@@ -725,7 +727,7 @@ module MyLayout{
             var b = 2 * ratio_ * C;
             var c = C*C - r*r;
 
-            var results = MyMath.getAbcFormulaResults(a, b, c);
+            var results = Math2.getAbcFormulaResults(a, b, c);
 
             var y = results[1];
             var x = y * ratio_ + C;
@@ -878,4 +880,5 @@ module MyLayout{
         }
 */        
     }
+}
 }

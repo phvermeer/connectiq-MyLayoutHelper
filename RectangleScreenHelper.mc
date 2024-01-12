@@ -1,8 +1,10 @@
 import Toybox.Lang;
 import Toybox.System;
-import MyMath;
+import MyBarrel.Math2;
 
-module MyLayout{
+module MyBarrel{
+(:layout)
+module Layout{
     class SquareScreenHelper{
         var xMin as Numeric;
         var xMax as Numeric;
@@ -99,4 +101,5 @@ module MyLayout{
             shape.setLocation(x, y);
         }
     }
+}
 }
